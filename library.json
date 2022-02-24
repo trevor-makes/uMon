@@ -1,0 +1,21 @@
+{
+  "name": "uMon",
+  "version": "0.0.0",
+  "description": "uMon is a collection of primitives useful in developing a machine language monitor",
+  "keywords": "Arduino, machine language monitor",
+  "repository":
+  {
+    "type": "git",
+    "url": "https://github.com/trevor-makes/uMon.git"
+  },
+  "authors":
+  [
+    {
+      "name": "Trevor Makes",
+      "email": "the.trevor.makes@gmail.com",
+      "maintainer": true
+    }
+  ],
+  "frameworks": "arduino",
+  "platforms": "atmelavr"
+}
