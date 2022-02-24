@@ -17,5 +17,12 @@
     }
   ],
   "frameworks": "arduino",
-  "platforms": "atmelavr"
+  "platforms": "atmelavr",
+  "dependencies":
+  [
+    {
+      "name": "uCLI",
+      "version": "https://github.com/trevor-makes/uCLI.git"
+    }
+  ]
 }
