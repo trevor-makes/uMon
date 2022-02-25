@@ -39,7 +39,7 @@ void fmt_hex32(F&& print, uint32_t n) {
 }
 
 template <typename API, uint8_t COL_SIZE = 16>
-void hex_dump(uint16_t start, uint16_t end) {
+void impl_hex(uint16_t start, uint16_t end) {
   uint8_t row_data[COL_SIZE];
   for (uint16_t row = start; row < end; row += COL_SIZE) {
     API::read_bytes(row, row_data);
@@ -70,11 +70,53 @@ void hex_dump(uint16_t start, uint16_t end) {
   }
 }
 
+template <typename API>
+void impl_memset(uint16_t start, uint16_t end, uint8_t fill) {
+  for (uint16_t i = start; i < end; ++i) {
+    API::write_byte(i, fill);
+  }
+}
+
+template <typename API>
+void impl_strcpy(uint16_t start, const char* str) {
+  for (;;) {
+    char c = *str++;
+    if (c == '\0')
+      break;
+    API::write_byte(start++, c);
+  }
+}
+
 template <typename API, uint8_t COL_SIZE = 16>
 void cmd_hex(uCLI::Tokens args) {
   uint16_t start = args.has_next() ? parse_u32(args.next()) : 0;
   uint16_t end = args.has_next() ? parse_u32(args.next()) : start + COL_SIZE;
-  hex_dump<API, COL_SIZE>(start, end);
+  impl_hex<API, COL_SIZE>(start, end);
+}
+
+template <typename API>
+void cmd_set(uCLI::Tokens args) {
+  const char* argv[3];
+  bool are_str[3];
+  uint8_t argc = args.get(argv, are_str);
+  if (argc < 2) {
+    API::print_string("loc str\n");
+    API::print_string("loc (end) int\n");
+  }
+  uint16_t start = uMon::parse_u32(argv[0]);
+  if (are_str[1]) {
+    // Set mem[start:] to 2nd arg as string
+    impl_strcpy<API>(start, argv[1]); // TODO should this just be an API function?
+  } else if (argc == 2) {
+    // Set mem[start] to 2nd arg as number
+    uint8_t fill = uMon::parse_u32(argv[1]);
+    impl_memset<API>(start, start + 1, fill);
+  } else if (argc == 3) {
+    // Set mem[start:end] to 3rd arg as number
+    uint16_t end = uMon::parse_u32(argv[1]);
+    uint8_t fill = uMon::parse_u32(argv[2]);
+    impl_memset<API>(start, end, fill);
+  }
 }
 
 } // namespace uMon
