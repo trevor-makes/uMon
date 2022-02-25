@@ -102,6 +102,7 @@ void cmd_set(uCLI::Tokens args) {
   if (argc < 2) {
     API::print_string("loc str\n");
     API::print_string("loc (end) int\n");
+    return;
   }
   uint16_t start = uMon::parse_u32(argv[0]);
   if (are_str[1]) {
