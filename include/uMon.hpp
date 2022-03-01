@@ -38,6 +38,14 @@ void fmt_hex32(F&& print, uint32_t n) {
   fmt_hex16(print, n & 0xFFFF);
 }
 
+template <typename F>
+void fmt_ascii(F&& print, uint8_t c) {
+  if (c < ' ' || c >= 0x7F) {
+    c = '.'; // Display control and non-ASCII as dot
+  }
+  print(c);
+}
+
 // Dump memory as hex/ascii from row to end, inclusive
 template <typename API, uint8_t COL_SIZE = 16>
 void impl_hex(uint16_t row, uint16_t end) {
@@ -61,11 +69,7 @@ void impl_hex(uint16_t row, uint16_t end) {
     // Print string data
     API::print_string("  \"");
     for (uint8_t col = 0; col < COL_SIZE; ++col) {
-      char m = row_data[col];
-      if (m < ' ' || m >= 0x7F) {
-        m = '.'; // Display control and non-ASCII as dot
-      }
-      API::print_char(m);
+      fmt_ascii(API::print_char, row_data[col]);
     }
     API::print_string("\"\n");
 
