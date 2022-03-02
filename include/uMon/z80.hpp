@@ -68,33 +68,73 @@ enum ALU {
 
 constexpr const char* ALU_STR[] = { "ADD", "ADC", "SUB", "SBC", "AND", "XOR", "OR", "CP" };
 
+// Rotate/shift operation 3-bit encodings
+enum Rot {
+  ROT_RLC = 0,
+  ROT_RRC = 1,
+  ROT_RL = 2,
+  ROT_RR = 3,
+  ROT_SLA = 4,
+  ROT_SRA = 5,
+  ROT_SLL = 6, // NOTE illegal/undefined opcode; should use SLA instead
+  ROT_SRL = 7,
+};
+
+constexpr const char* ROT_STR[] = { "RLC", "RRC", "RL", "RR", "SLA", "SRA", "SLL", "SRL" };
+
+template <typename API>
+uint16_t dasm_cb(uint16_t addr) {
+  uint8_t code = API::read_byte(addr);
+  switch (code & 0300) {
+  case 0000:
+    API::print_string(ROT_STR[(code & 070) >> 3]);
+    API::print_char(' ');
+    API::print_string(REG_STR[(code & 07)]);
+    return addr + 1;
+  case 0100:
+    API::print_string("BIT ");
+    break;
+  case 0200:
+    API::print_string("RES ");
+    break;
+  case 0300:
+    API::print_string("SET ");
+    break;
+  }
+  API::print_char('0' + ((code & 070) >> 3));
+  API::print_char(',');
+  API::print_string(REG_STR[(code & 07)]);
+  return addr + 1;
+}
+
 template <typename API>
 uint16_t dasm_one(uint16_t addr) {
   uint8_t code = API::read_byte(addr);
   switch (code) {
-    case 0x76:
-      API::print_string("HALT");
-      return addr + 1;
-    case 0xCB:
-    case 0xDB:
-    case 0xEB:
-    case 0xFB:
-      // TODO handle prefix bytes
-      return addr + 1;
+  case 0x76:
+    API::print_string("HALT");
+    return addr + 1;
+  case 0xCB:
+    return dasm_cb<API>(addr + 1);
+  case 0xDB:
+  case 0xEB:
+  case 0xFB:
+    // TODO handle prefix bytes
+    return addr + 1;
   }
   switch (code & 0300) {
-    case 0100:
-      API::print_string("LD ");
-      API::print_string(REG_STR[(code & 070) >> 3]);
-      API::print_char(',');
-      API::print_string(REG_STR[(code & 07)]);
-      return addr + 1;
-    case 0200:
-      API::print_string(ALU_STR[(code & 070) >> 3]);
-      API::print_string(" A,");
-      API::print_string(REG_STR[(code & 07)]);
-      return addr + 1;
-    // TODO 0000 and 0300 groups
+  case 0100:
+    API::print_string("LD ");
+    API::print_string(REG_STR[(code & 070) >> 3]);
+    API::print_char(',');
+    API::print_string(REG_STR[(code & 07)]);
+    return addr + 1;
+  case 0200:
+    API::print_string(ALU_STR[(code & 070) >> 3]);
+    API::print_string(" A,");
+    API::print_string(REG_STR[(code & 07)]);
+    return addr + 1;
+  // TODO 0000 and 0300 groups
   }
   return addr + 1;
 }
