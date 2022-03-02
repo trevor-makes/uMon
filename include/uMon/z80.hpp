@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include "uMon/format.hpp"
 #include "uCLI.hpp"
 
 #include <stdint.h>
