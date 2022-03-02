@@ -108,6 +108,67 @@ uint16_t dasm_cb(uint16_t addr) {
 }
 
 template <typename API>
+uint16_t dasm_lo(uint16_t addr, uint8_t code) {
+  switch (code & 07) {
+  case 0:
+    break;
+  case 1:
+    if ((code & 010) == 010) {
+      API::print_string("ADD HL,");
+      API::print_string(PAIR_STR[(code & 060) >> 4]);
+      return addr + 1;
+    } else {
+      API::print_string("LD ");
+      API::print_string(PAIR_STR[(code & 060) >> 4]);
+      API::print_string(",$");
+      fmt_hex8(API::print_char, API::read_byte(addr + 2));
+      fmt_hex8(API::print_char, API::read_byte(addr + 1));
+      return addr + 3;
+    }
+  case 2:
+    break;
+  case 3:
+    break;
+  case 4:
+    break;
+  case 5:
+    break;
+  case 6:
+    API::print_string("LD ");
+    API::print_string(REG_STR[(code & 070) >> 3]);
+    API::print_string(",$");
+    fmt_hex8(API::print_char, API::read_byte(addr + 1));
+    return addr + 2;
+  case 7:
+    break;
+  }
+  return addr + 1;
+}
+
+template <typename API>
+uint16_t dasm_hi(uint16_t addr, uint8_t code) {
+  switch (code & 07) {
+  case 0:
+    break;
+  case 1:
+    break;
+  case 2:
+    break;
+  case 3:
+    break;
+  case 4:
+    break;
+  case 5:
+    break;
+  case 6:
+    break;
+  case 7:
+    break;
+  }
+  return addr + 1;
+}
+
+template <typename API>
 uint16_t dasm_one(uint16_t addr) {
   uint8_t code = API::read_byte(addr);
   switch (code) {
@@ -123,6 +184,8 @@ uint16_t dasm_one(uint16_t addr) {
     return addr + 1;
   }
   switch (code & 0300) {
+  case 0000:
+    return dasm_lo<API>(addr, code);
   case 0100:
     API::print_string("LD ");
     API::print_string(REG_STR[(code & 070) >> 3]);
@@ -134,7 +197,8 @@ uint16_t dasm_one(uint16_t addr) {
     API::print_string(" A,");
     API::print_string(REG_STR[(code & 07)]);
     return addr + 1;
-  // TODO 0000 and 0300 groups
+  case 0300:
+    return dasm_hi<API>(addr, code);
   }
   return addr + 1;
 }
