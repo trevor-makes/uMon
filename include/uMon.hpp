@@ -87,7 +87,7 @@ void cmd_set(uCLI::Args args) {
     uint8_t pattern = uMon::parse_u32(argv[1]);
     impl_memset<API>(start, start, pattern);
     // Prompt CLI to do another set at the following address
-    fmt_prompt(args.command(), start + 1);
+    fmt_prompt<API>(args.command(), start + 1);
   } else if (argc == 3) {
     // Set mem[start:start+size] to pattern
     uint16_t size = uMon::parse_u32(argv[1]);
