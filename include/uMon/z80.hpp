@@ -62,8 +62,8 @@ enum ALU {
   ALU_SBC = 3,
   ALU_AND = 4,
   ALU_XOR = 5,
-  ALU_OR = 6,
-  ALU_CP = 7,
+  ALU_OR  = 6,
+  ALU_CP  = 7,
 };
 
 constexpr const char* ALU_STR[] = { "ADD", "ADC", "SUB", "SBC", "AND", "XOR", "OR", "CP" };
@@ -72,8 +72,8 @@ constexpr const char* ALU_STR[] = { "ADD", "ADC", "SUB", "SBC", "AND", "XOR", "O
 enum Rot {
   ROT_RLC = 0,
   ROT_RRC = 1,
-  ROT_RL = 2,
-  ROT_RR = 3,
+  ROT_RL  = 2,
+  ROT_RR  = 3,
   ROT_SLA = 4,
   ROT_SRA = 5,
   ROT_SLL = 6, // NOTE illegal/undefined opcode; should use SLA instead
@@ -81,6 +81,29 @@ enum Rot {
 };
 
 constexpr const char* ROT_STR[] = { "RLC", "RRC", "RL", "RR", "SLA", "SRA", "SLL", "SRL" };
+
+// Format 1-byte immediate following opcode
+template <typename API>
+void fmt_imm(uint16_t addr) {
+  API::print_char('$');
+  fmt_hex8(API::print_char, API::read_byte(addr + 1));
+}
+
+// Format 2-byte immediate following opcode
+template <typename API>
+void fmt_imm2(uint16_t addr) {
+  API::print_char('$');
+  fmt_hex8(API::print_char, API::read_byte(addr + 2));
+  fmt_hex8(API::print_char, API::read_byte(addr + 1));
+}
+
+// Format displacement following relative jump
+template <typename API>
+void fmt_disp(uint16_t addr) {
+  API::print_char('$');
+  int8_t disp = API::read_byte(addr + 1);
+  fmt_hex16(API::print_char, addr + 2 + disp);
+}
 
 // Disassemble extended opcodes prefixed by $CB
 template <typename API>
@@ -113,14 +136,36 @@ template <typename API>
 uint16_t dasm_lo(uint16_t addr, uint8_t code) {
   switch (code & 07) {
   case 0:
-    break;
+    if ((code & 040) == 0) {
+      switch (code & 030) {
+      case 000:
+        API::print_string("NOP");
+        return addr + 1;
+      case 010:
+        API::print_string("EX AF");
+        return addr + 1;
+      case 020:
+        API::print_string("DJNZ ");
+        fmt_disp<API>(addr);
+        return addr + 2;
+      case 030:
+        API::print_string("JR ");
+        fmt_disp<API>(addr);
+        return addr + 2;
+      }
+    } else {
+      API::print_string("JR ");
+      API::print_string(COND_STR[(code & 030) >> 3]);
+      API::print_char(',');
+      fmt_disp<API>(addr);
+      return addr + 2;
+    }
   case 1:
     if ((code & 010) == 0) {
       API::print_string("LD ");
       API::print_string(PAIR_STR[(code & 060) >> 4]);
-      API::print_string(",$");
-      fmt_hex8(API::print_char, API::read_byte(addr + 2));
-      fmt_hex8(API::print_char, API::read_byte(addr + 1));
+      API::print_char(',');
+      fmt_imm2<API>(addr);
       return addr + 3;
     } else {
       API::print_string("ADD HL,");
@@ -148,8 +193,8 @@ uint16_t dasm_lo(uint16_t addr, uint8_t code) {
   case 6:
     API::print_string("LD ");
     API::print_string(REG_STR[(code & 070) >> 3]);
-    API::print_string(",$");
-    fmt_hex8(API::print_char, API::read_byte(addr + 1));
+    API::print_char(',');
+    fmt_imm<API>(addr);
     return addr + 2;
   case 7:
     break;
