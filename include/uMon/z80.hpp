@@ -139,33 +139,37 @@ uint16_t dasm_cb(uint16_t addr) {
 // Disassemble indirect loads (octal 0n2)
 template <typename API>
 uint16_t dasm_ld_ind(uint16_t addr, uint8_t code) {
+  // Decode 070 bitfield
+  const bool is_store = (code & 010) == 0; // A/HL is src instead of dst
+  const bool use_hl = (code & 060) == 040; // Use HL instead of A
+  const bool use_pair = (code & 040) == 0; // Use (BC/DE) instead of (nn)
   API::print_string("LD ");
-  // Set 010 bit uses A/HL as dest (load)
-  if ((code & 010) != 0) {
-    if ((code & 060) == 040) {
+  // Print A/HL first for loads
+  if (!is_store) {
+    if (use_hl) {
       API::print_string("HL,");
     } else {
       API::print_string("A,");
     }
   }
-  // Clear 040 bit uses (BC/DE), set bit uses (nn)
+  // Print (BC/DE) or (nn)
   API::print_char('(');
-  if ((code & 040) == 0) {
-    API::print_string(PAIR_STR[(code & 060) >> 4]);
+  if (use_pair) {
+    API::print_string(PAIR_STR[(code & 020) >> 4]);
   } else {
     fmt_imm2<API>(addr);
   }
   API::print_char(')');
-  // Clear 010 bit uses A/HL as src (store)
-  if ((code & 010) == 0) {
-    if ((code & 060) == 040) {
+  // Print A/HL second for stores
+  if (is_store) {
+    if (use_hl) {
       API::print_string(",HL");
     } else {
       API::print_string(",A");
     }
   }
   // Opcodes followed by (nn) consume 2 extra bytes
-  if ((code & 040) == 0) {
+  if (use_pair) {
     return addr + 1;
   } else {
     return addr + 3;
