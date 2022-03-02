@@ -62,14 +62,14 @@ void impl_strcpy(uint16_t start, const char* str) {
 }
 
 template <typename API, uint8_t COL_SIZE = 16>
-void cmd_hex(uCLI::Tokens args) {
+void cmd_hex(uCLI::Args args) {
   uint16_t start = args.has_next() ? parse_u32(args.next()) : 0;
   uint16_t size = args.has_next() ? parse_u32(args.next()) : COL_SIZE;
   impl_hex<API, COL_SIZE>(start, start + size - 1);
 }
 
 template <typename API>
-void cmd_set(uCLI::Tokens args) {
+void cmd_set(uCLI::Args args) {
   const char* argv[3];
   bool are_str[3];
   uint8_t argc = args.get(argv, are_str);
@@ -86,6 +86,8 @@ void cmd_set(uCLI::Tokens args) {
     // Set mem[start] to pattern
     uint8_t pattern = uMon::parse_u32(argv[1]);
     impl_memset<API>(start, start, pattern);
+    // Prompt CLI to do another set at the following address
+    fmt_prompt(args.command(), start + 1);
   } else if (argc == 3) {
     // Set mem[start:start+size] to pattern
     uint16_t size = uMon::parse_u32(argv[1]);

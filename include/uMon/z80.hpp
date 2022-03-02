@@ -329,7 +329,7 @@ void impl_dasm(uint16_t addr, uint16_t end) {
 }
 
 template <typename API>
-void cmd_dasm(uCLI::Tokens args) {
+void cmd_dasm(uCLI::Args args) {
   uint16_t start = args.has_next() ? parse_u32(args.next()) : 0;
   uint16_t size = args.has_next() ? parse_u32(args.next()) : 1;
   impl_dasm<API>(start, start + size - 1);
