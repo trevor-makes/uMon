@@ -82,6 +82,7 @@ enum Rot {
 
 constexpr const char* ROT_STR[] = { "RLC", "RRC", "RL", "RR", "SLA", "SRA", "SLL", "SRL" };
 
+// Disassemble extended opcodes prefixed by $CB
 template <typename API>
 uint16_t dasm_cb(uint16_t addr) {
   uint8_t code = API::read_byte(addr);
@@ -107,32 +108,43 @@ uint16_t dasm_cb(uint16_t addr) {
   return addr + 1;
 }
 
+// Disassemble opcodes with leading octal digit 0
 template <typename API>
 uint16_t dasm_lo(uint16_t addr, uint8_t code) {
   switch (code & 07) {
   case 0:
     break;
   case 1:
-    if ((code & 010) == 010) {
-      API::print_string("ADD HL,");
-      API::print_string(PAIR_STR[(code & 060) >> 4]);
-      return addr + 1;
-    } else {
+    if ((code & 010) == 0) {
       API::print_string("LD ");
       API::print_string(PAIR_STR[(code & 060) >> 4]);
       API::print_string(",$");
       fmt_hex8(API::print_char, API::read_byte(addr + 2));
       fmt_hex8(API::print_char, API::read_byte(addr + 1));
       return addr + 3;
+    } else {
+      API::print_string("ADD HL,");
+      API::print_string(PAIR_STR[(code & 060) >> 4]);
+      return addr + 1;
     }
   case 2:
     break;
   case 3:
-    break;
+    if ((code & 010) == 0) {
+      API::print_string("INC ");
+    } else {
+      API::print_string("DEC ");
+    }
+    API::print_string(PAIR_STR[(code & 060) >> 4]);
+    return addr + 1;
   case 4:
-    break;
+    API::print_string("INC ");
+    API::print_string(REG_STR[(code & 070) >> 3]);
+    return addr + 1;
   case 5:
-    break;
+    API::print_string("DEC ");
+    API::print_string(REG_STR[(code & 070) >> 3]);
+    return addr + 1;
   case 6:
     API::print_string("LD ");
     API::print_string(REG_STR[(code & 070) >> 3]);
@@ -145,6 +157,7 @@ uint16_t dasm_lo(uint16_t addr, uint8_t code) {
   return addr + 1;
 }
 
+// Disassemble opcodes with leading octal digit 3
 template <typename API>
 uint16_t dasm_hi(uint16_t addr, uint8_t code) {
   switch (code & 07) {
@@ -169,7 +182,7 @@ uint16_t dasm_hi(uint16_t addr, uint8_t code) {
 }
 
 template <typename API>
-uint16_t dasm_one(uint16_t addr) {
+uint16_t dasm_base(uint16_t addr) {
   uint8_t code = API::read_byte(addr);
   switch (code) {
   case 0x76:
@@ -206,7 +219,7 @@ uint16_t dasm_one(uint16_t addr) {
 template <typename API>
 void impl_dasm(uint16_t addr, uint16_t end) {
   for (;;) {
-    uint16_t next = dasm_one<API>(addr);
+    uint16_t next = dasm_base<API>(addr);
     API::print_char('\n');
     // Do while end does not overlap with opcode
     if (uint16_t(end - addr) < uint16_t(next - addr)) break;
