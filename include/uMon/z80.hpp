@@ -111,17 +111,21 @@ uint16_t dasm_cb(uint16_t addr) {
   uint8_t code = API::read_byte(addr);
   switch (code & 0300) {
   case 0000:
+    // [ROT op] reg
     API::print_string(ROT_STR[(code & 070) >> 3]);
     API::print_char(' ');
     API::print_string(REG_STR[(code & 07)]);
     return addr + 1;
   case 0100:
+    // BIT bit, reg
     API::print_string("BIT ");
     break;
   case 0200:
+    // RES bit, reg
     API::print_string("RES ");
     break;
   case 0300:
+    // SET bit, reg
     API::print_string("SET ");
     break;
   }
@@ -145,15 +149,18 @@ uint16_t dasm_lo(uint16_t addr, uint8_t code) {
         API::print_string("EX AF");
         return addr + 1;
       case 020:
+        // DJNZ disp
         API::print_string("DJNZ ");
         fmt_disp<API>(addr);
         return addr + 2;
       case 030:
+        // JR disp
         API::print_string("JR ");
         fmt_disp<API>(addr);
         return addr + 2;
       }
     } else {
+      // JR cond, disp
       API::print_string("JR ");
       API::print_string(COND_STR[(code & 030) >> 3]);
       API::print_char(',');
@@ -162,12 +169,14 @@ uint16_t dasm_lo(uint16_t addr, uint8_t code) {
     }
   case 1:
     if ((code & 010) == 0) {
+      // LD pair, imm
       API::print_string("LD ");
       API::print_string(PAIR_STR[(code & 060) >> 4]);
       API::print_char(',');
       fmt_imm2<API>(addr);
       return addr + 3;
     } else {
+      // ADD HL, pair
       API::print_string("ADD HL,");
       API::print_string(PAIR_STR[(code & 060) >> 4]);
       return addr + 1;
@@ -175,6 +184,7 @@ uint16_t dasm_lo(uint16_t addr, uint8_t code) {
   case 2:
     break;
   case 3:
+    // INC/DEC pair
     if ((code & 010) == 0) {
       API::print_string("INC ");
     } else {
@@ -183,14 +193,17 @@ uint16_t dasm_lo(uint16_t addr, uint8_t code) {
     API::print_string(PAIR_STR[(code & 060) >> 4]);
     return addr + 1;
   case 4:
+    // INC reg
     API::print_string("INC ");
     API::print_string(REG_STR[(code & 070) >> 3]);
     return addr + 1;
   case 5:
+    // DEC reg
     API::print_string("DEC ");
     API::print_string(REG_STR[(code & 070) >> 3]);
     return addr + 1;
   case 6:
+    // LD reg, imm
     API::print_string("LD ");
     API::print_string(REG_STR[(code & 070) >> 3]);
     API::print_char(',');
@@ -245,12 +258,14 @@ uint16_t dasm_base(uint16_t addr) {
   case 0000:
     return dasm_lo<API>(addr, code);
   case 0100:
+    // LD reg, reg
     API::print_string("LD ");
     API::print_string(REG_STR[(code & 070) >> 3]);
     API::print_char(',');
     API::print_string(REG_STR[(code & 07)]);
     return addr + 1;
   case 0200:
+    // [ALU op] A, reg
     API::print_string(ALU_STR[(code & 070) >> 3]);
     API::print_string(" A,");
     API::print_string(REG_STR[(code & 07)]);
