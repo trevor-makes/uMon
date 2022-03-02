@@ -136,6 +136,42 @@ uint16_t dasm_cb(uint16_t addr) {
   return addr + 1;
 }
 
+// Disassemble indirect loads (octal 0n2)
+template <typename API>
+uint16_t dasm_ld_ind(uint16_t addr, uint8_t code) {
+  API::print_string("LD ");
+  // Set 010 bit uses A/HL as dest (load)
+  if ((code & 010) != 0) {
+    if ((code & 060) == 040) {
+      API::print_string("HL,");
+    } else {
+      API::print_string("A,");
+    }
+  }
+  // Clear 040 bit uses (BC/DE), set bit uses (nn)
+  API::print_char('(');
+  if ((code & 040) == 0) {
+    API::print_string(PAIR_STR[(code & 060) >> 4]);
+  } else {
+    fmt_imm2<API>(addr);
+  }
+  API::print_char(')');
+  // Clear 010 bit uses A/HL as src (store)
+  if ((code & 010) == 0) {
+    if ((code & 060) == 040) {
+      API::print_string(",HL");
+    } else {
+      API::print_string(",A");
+    }
+  }
+  // Opcodes followed by (nn) consume 2 extra bytes
+  if ((code & 040) == 0) {
+    return addr + 1;
+  } else {
+    return addr + 3;
+  }
+}
+
 // Disassemble opcodes with leading octal digit 0
 template <typename API>
 uint16_t dasm_lo(uint16_t addr, uint8_t code) {
@@ -183,7 +219,7 @@ uint16_t dasm_lo(uint16_t addr, uint8_t code) {
       return addr + 1;
     }
   case 2:
-    break;
+    return dasm_ld_ind<API>(addr, code);
   case 3:
     // INC/DEC pair
     if ((code & 010) == 0) {
