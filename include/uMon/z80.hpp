@@ -1,0 +1,121 @@
+// https://github.com/trevor-makes/uMon.git
+// Copyright (c) 2022 Trevor Makes
+
+// 8080/Z80 (and even x86!) opcodes are organized by octal groupings
+// http://z80.info/decoding.htm is a great resource for decoding these
+
+#pragma once
+
+#include "uCLI.hpp"
+
+#include <stdint.h>
+
+namespace uMon {
+namespace z80 {
+
+// Register operand 3-bit encodings
+enum Reg {
+  REG_B = 0,
+  REG_C = 1,
+  REG_D = 2,
+  REG_E = 3,
+  REG_H = 4,
+  REG_L = 5,
+  REG_M = 6, // (HL), memory at address pointed to by HL
+  REG_A = 7,
+};
+
+constexpr const char* REG_STR[] = { "B", "C", "D", "E", "H", "L", "(HL)", "A" };
+
+// Register pair operand 2-bit encodings
+enum Pair {
+  PAIR_BC = 0,
+  PAIR_DE = 1,
+  PAIR_HL = 2,
+  PAIR_SP = 3, // id "SP" is poisoned by AVR macro definition...
+  PAIR_AF = 3, // alternate meaning for PUSH/POP
+};
+
+constexpr const char* PAIR_STR[] = { "BC", "DE", "HL", "SP" };
+constexpr const char* PAIR_ALT_STR[] = { "BC", "DE", "HL", "AF" };
+
+// Branch condition 3-bit encodings
+// xx- = [Z, C, P/V, S], --x = [clear, set]
+enum Cond {
+  COND_NZ = 0, //   Z = 0 : non-zero or not equal
+  COND_Z  = 1, //   Z = 1 : zero or equal
+  COND_NC = 2, //   C = 0 : no overflow or carry clear
+  COND_C  = 3, //   C = 1 : unsigned overflow or carry set
+  COND_PO = 4, // P/V = 0 : odd parity or no overflow
+  COND_PE = 5, // P/V = 1 : even parity or signed overflow
+  COND_P  = 6, //   S = 0 : positive or high bit clear
+  COND_M  = 7, //   S = 1 : negative or high bit set
+};
+
+constexpr const char* COND_STR[] = { "NZ", "Z", "NC", "C", "PO", "PE", "P", "M" };
+
+// ALU operation 3-bit encodings
+enum ALU {
+  ALU_ADD = 0,
+  ALU_ADC = 1, // id "ADC" is poisoned by AVR macro definition...
+  ALU_SUB = 2,
+  ALU_SBC = 3,
+  ALU_AND = 4,
+  ALU_XOR = 5,
+  ALU_OR = 6,
+  ALU_CP = 7,
+};
+
+constexpr const char* ALU_STR[] = { "ADD", "ADC", "SUB", "SBC", "AND", "XOR", "OR", "CP" };
+
+template <typename API>
+uint16_t dasm_one(uint16_t addr) {
+  uint8_t code = API::read_byte(addr);
+  switch (code) {
+    case 0x76:
+      API::print_string("HALT");
+      return addr + 1;
+    case 0xCB:
+    case 0xDB:
+    case 0xEB:
+    case 0xFB:
+      // TODO handle prefix bytes
+      return addr + 1;
+  }
+  switch (code & 0300) {
+    case 0100:
+      API::print_string("LD ");
+      API::print_string(REG_STR[(code & 070) >> 3]);
+      API::print_char(',');
+      API::print_string(REG_STR[(code & 07)]);
+      return addr + 1;
+    case 0200:
+      API::print_string(ALU_STR[(code & 070) >> 3]);
+      API::print_string(" A,");
+      API::print_string(REG_STR[(code & 07)]);
+      return addr + 1;
+    // TODO 0000 and 0300 groups
+  }
+  return addr + 1;
+}
+
+template <typename API>
+void impl_dasm(uint16_t addr, uint16_t end) {
+  for (;;) {
+    uint16_t next = dasm_one<API>(addr);
+    API::print_char('\n');
+    // Do while end does not overlap with opcode
+    if (uint16_t(end - addr) < uint16_t(next - addr)) break;
+    addr = next;
+  }
+}
+
+template <typename API>
+void cmd_dasm(uCLI::Tokens args) {
+  uint16_t start = args.has_next() ? parse_u32(args.next()) : 0;
+  uint16_t size = args.has_next() ? parse_u32(args.next()) : 1;
+  impl_dasm<API>(start, start + size - 1);
+}
+
+} // namespace z80
+} // namespace uMon
