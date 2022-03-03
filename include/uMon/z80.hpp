@@ -276,12 +276,14 @@ template <typename API>
 uint16_t dasm_hi(uint16_t addr, uint8_t code) {
   switch (code & 07) {
   case 0:
+    // RET cc
     API::print_string("RET ");
     API::print_string(COND_STR[(code & 070) >> 3]);
     return addr + 1;
   case 1:
     break;
   case 2:
+    // JP cc, imm2
     API::print_string("JP ");
     API::print_string(COND_STR[(code & 070) >> 3]);
     API::print_char(',');
@@ -290,6 +292,7 @@ uint16_t dasm_hi(uint16_t addr, uint8_t code) {
   case 3:
     break;
   case 4:
+    // CALL cc, imm2
     API::print_string("CALL ");
     API::print_string(COND_STR[(code & 070) >> 3]);
     API::print_char(',');
@@ -304,7 +307,10 @@ uint16_t dasm_hi(uint16_t addr, uint8_t code) {
     fmt_imm<API>(addr);
     return addr + 2;
   case 7:
-    break;
+    // RST zp
+    API::print_string("RST $");
+    fmt_hex8(API::print_char, code & 070);
+    return addr + 1;
   }
   return addr + 1;
 }
