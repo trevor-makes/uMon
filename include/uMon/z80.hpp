@@ -237,24 +237,16 @@ uint16_t dasm_lo(uint16_t addr, uint8_t code) {
   case 2:
     return dasm_ld_ind<API>(addr, code);
   case 3:
-    // INC/DEC pair
-    if ((code & 010) == 0) {
-      API::print_string("INC ");
-    } else {
-      API::print_string("DEC ");
-    }
-    API::print_string(PAIR_STR[(code & 060) >> 4]);
-    return addr + 1;
   case 4:
-    // INC reg
-    API::print_string("INC ");
-    API::print_string(REG_STR[(code & 070) >> 3]);
-    return addr + 1;
   case 5:
-    // DEC reg
-    API::print_string("DEC ");
-    API::print_string(REG_STR[(code & 070) >> 3]);
-    return addr + 1;
+    {
+      const bool is_pair = (code & 04) == 0;
+      const bool is_inc = is_pair ? (code & 010) == 0 : (code & 01) == 0;
+      uint8_t reg = is_pair ? (code & 060) >> 4 : (code & 070) >> 3;
+      API::print_string(is_inc ? "INC " : "DEC ");
+      API::print_string(is_pair ? PAIR_STR[reg] : REG_STR[reg]);
+      return addr + 1;
+    }
   case 6:
     // LD reg, imm
     API::print_string("LD ");
