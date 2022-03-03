@@ -150,7 +150,37 @@ uint16_t dasm_cb(uint16_t addr) {
   return addr + 1;
 }
 
-// Disassemble indirect loads (octal 0n2)
+// Disassemble relative jumps (octal 0Y0)
+template <typename API>
+uint16_t dasm_jr(uint16_t addr, uint8_t code) {
+  switch (code & 070) {
+  case 000:
+    API::print_string("NOP");
+    return addr + 1;
+  case 010:
+    API::print_string("EX AF");
+    return addr + 1;
+  case 020:
+    // DJNZ disp
+    API::print_string("DJNZ ");
+    fmt_disp<API>(addr);
+    return addr + 2;
+  case 030:
+    // JR disp
+    API::print_string("JR ");
+    fmt_disp<API>(addr);
+    return addr + 2;
+  default:
+    // JR cond, disp
+    API::print_string("JR ");
+    API::print_string(COND_STR[(code & 030) >> 3]);
+    API::print_char(',');
+    fmt_disp<API>(addr);
+    return addr + 2;
+  }
+}
+
+// Disassemble indirect loads (octal 0Y2)
 template <typename API>
 uint16_t dasm_ld_ind(uint16_t addr, uint8_t code) {
   // Decode 070 bitfield
@@ -190,6 +220,7 @@ uint16_t dasm_ld_ind(uint16_t addr, uint8_t code) {
   }
 }
 
+// Disassemble INC/DEC (octal 0Y3, 0Y4, 0Y5)
 template <typename API>
 uint16_t dasm_inc_dec(uint16_t addr, uint8_t code) {
   const bool is_pair = (code & 04) == 0;
@@ -205,31 +236,7 @@ template <typename API>
 uint16_t dasm_lo(uint16_t addr, uint8_t code) {
   switch (code & 07) {
   case 0:
-    switch (code & 070) {
-    case 000:
-      API::print_string("NOP");
-      return addr + 1;
-    case 010:
-      API::print_string("EX AF");
-      return addr + 1;
-    case 020:
-      // DJNZ disp
-      API::print_string("DJNZ ");
-      fmt_disp<API>(addr);
-      return addr + 2;
-    case 030:
-      // JR disp
-      API::print_string("JR ");
-      fmt_disp<API>(addr);
-      return addr + 2;
-    default:
-      // JR cond, disp
-      API::print_string("JR ");
-      API::print_string(COND_STR[(code & 030) >> 3]);
-      API::print_char(',');
-      fmt_disp<API>(addr);
-      return addr + 2;
-    }
+    return dasm_jr<API>(addr, code);
   case 1:
     if ((code & 010) == 0) {
       // LD pair, imm
@@ -254,6 +261,7 @@ uint16_t dasm_lo(uint16_t addr, uint8_t code) {
     fmt_imm<API>(addr);
     return addr + 2;
   case 7:
+    // Misc AF ops with no operands
     API::print_string(MISC_STR[(code & 070) >> 3]);
     return addr + 1;
   default:
