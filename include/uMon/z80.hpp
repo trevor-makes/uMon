@@ -281,7 +281,16 @@ uint16_t dasm_hi(uint16_t addr, uint8_t code) {
     API::print_string(COND_STR[(code & 070) >> 3]);
     return addr + 1;
   case 1:
-    break;
+    if ((code & 010) == 0) {
+      API::print_string("POP ");
+      API::print_string(PAIR_ALT_STR[(code & 060) >> 4]);
+      return addr + 1;
+    } else {
+      // TODO JP/LD will need to handle DD/FD prefix
+      static constexpr const char* OPS[] = { "RET", "EXX", "JP (HL)", "LD SP,HL" };
+      API::print_string(OPS[(code & 060) >> 4]);
+      return addr + 1;
+    }
   case 2:
     // JP cc, imm2
     API::print_string("JP ");
@@ -299,7 +308,16 @@ uint16_t dasm_hi(uint16_t addr, uint8_t code) {
     fmt_imm2<API>(addr);
     return addr + 3;
   case 5:
-    break;
+    if ((code & 010) == 0) {
+      API::print_string("PUSH ");
+      API::print_string(PAIR_ALT_STR[(code & 060) >> 4]);
+      return addr + 1;
+    } else {
+      // NOTE $DD, $ED, $FD should have already been handled
+      API::print_string("CALL ");
+      fmt_imm2<API>(addr);
+      return addr + 3;
+    }
   case 6:
     // [ALU op] A, imm
     API::print_string(ALU_STR[(code & 070) >> 3]);
@@ -324,9 +342,9 @@ uint16_t dasm_base(uint16_t addr) {
     return addr + 1;
   case 0xCB:
     return dasm_cb<API>(addr + 1);
-  case 0xDB:
-  case 0xEB:
-  case 0xFB:
+  case 0xDD:
+  case 0xED:
+  case 0xFD:
     // TODO handle prefix bytes
     return addr + 1;
   }
