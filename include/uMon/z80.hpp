@@ -190,6 +190,16 @@ uint16_t dasm_ld_ind(uint16_t addr, uint8_t code) {
   }
 }
 
+template <typename API>
+uint16_t dasm_inc_dec(uint16_t addr, uint8_t code) {
+  const bool is_pair = (code & 04) == 0;
+  const bool is_inc = is_pair ? (code & 010) == 0 : (code & 01) == 0;
+  uint8_t reg = is_pair ? (code & 060) >> 4 : (code & 070) >> 3;
+  API::print_string(is_inc ? "INC " : "DEC ");
+  API::print_string(is_pair ? PAIR_STR[reg] : REG_STR[reg]);
+  return addr + 1;
+}
+
 // Disassemble opcodes with leading octal digit 0
 template <typename API>
 uint16_t dasm_lo(uint16_t addr, uint8_t code) {
@@ -236,17 +246,6 @@ uint16_t dasm_lo(uint16_t addr, uint8_t code) {
     }
   case 2:
     return dasm_ld_ind<API>(addr, code);
-  case 3:
-  case 4:
-  case 5:
-    {
-      const bool is_pair = (code & 04) == 0;
-      const bool is_inc = is_pair ? (code & 010) == 0 : (code & 01) == 0;
-      uint8_t reg = is_pair ? (code & 060) >> 4 : (code & 070) >> 3;
-      API::print_string(is_inc ? "INC " : "DEC ");
-      API::print_string(is_pair ? PAIR_STR[reg] : REG_STR[reg]);
-      return addr + 1;
-    }
   case 6:
     // LD reg, imm
     API::print_string("LD ");
@@ -257,8 +256,9 @@ uint16_t dasm_lo(uint16_t addr, uint8_t code) {
   case 7:
     API::print_string(MISC_STR[(code & 070) >> 3]);
     return addr + 1;
+  default:
+    return dasm_inc_dec<API>(addr, code);
   }
-  return addr + 1;
 }
 
 // Disassemble opcodes with leading octal digit 3
