@@ -69,6 +69,16 @@ enum ALU {
 
 constexpr const char* ALU_STR[] = { "ADD", "ADC", "SUB", "SBC", "AND", "XOR", "OR", "CP" };
 
+// CB prefix bit ops 2-bit encoding
+enum CB {
+  CB_ROT = 0,
+  CB_BIT = 1,
+  CB_RES = 2,
+  CB_SET = 3,
+};
+
+constexpr const char* CB_STR[] = { "", "BIT", "RES", "SET" };
+
 // Rotate/shift operation 3-bit encodings
 enum Rot {
   ROT_RLC = 0,
@@ -123,30 +133,18 @@ void fmt_disp(uint16_t addr) {
 // Disassemble extended opcodes prefixed by $CB
 template <typename API>
 uint16_t dasm_cb(uint16_t addr) {
-  uint8_t code = API::read_byte(addr);
-  switch (code & 0300) {
-  case 0000:
-    // [ROT op] reg
-    API::print_string(ROT_STR[(code & 070) >> 3]);
-    API::print_char(' ');
-    API::print_string(REG_STR[(code & 07)]);
-    return addr + 1;
-  case 0100:
-    // BIT bit, reg
-    API::print_string("BIT ");
-    break;
-  case 0200:
-    // RES bit, reg
-    API::print_string("RES ");
-    break;
-  case 0300:
-    // SET bit, reg
-    API::print_string("SET ");
-    break;
+  const uint8_t code = API::read_byte(addr);
+  const uint8_t op = (code & 0300) >> 6;
+  const uint8_t index = (code & 070) >> 3;
+  const uint8_t reg = code & 07;
+  API::print_string(op == 0 ? ROT_STR[index] : CB_STR[op]);
+  API::print_char(' ');
+  // Print bit index
+  if (op != 0) {
+    API::print_char('0' + index);
+    API::print_char(',');
   }
-  API::print_char('0' + ((code & 070) >> 3));
-  API::print_char(',');
-  API::print_string(REG_STR[(code & 07)]);
+  API::print_string(REG_STR[reg]);
   return addr + 1;
 }
 
@@ -190,11 +188,7 @@ uint16_t dasm_ld_ind(uint16_t addr, uint8_t code) {
   API::print_string("LD ");
   // Print A/HL first for loads
   if (!is_store) {
-    if (use_hl) {
-      API::print_string("HL,");
-    } else {
-      API::print_string("A,");
-    }
+    API::print_string(use_hl ? "HL," : "A,");
   }
   // Print (BC/DE) or (nn)
   API::print_char('(');
@@ -206,11 +200,7 @@ uint16_t dasm_ld_ind(uint16_t addr, uint8_t code) {
   API::print_char(')');
   // Print A/HL second for stores
   if (is_store) {
-    if (use_hl) {
-      API::print_string(",HL");
-    } else {
-      API::print_string(",A");
-    }
+    API::print_string(use_hl ? ",HL" : ",A");
   }
   // Opcodes followed by (nn) consume 2 extra bytes
   if (use_pair) {
