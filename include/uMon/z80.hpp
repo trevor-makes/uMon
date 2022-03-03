@@ -195,26 +195,24 @@ template <typename API>
 uint16_t dasm_lo(uint16_t addr, uint8_t code) {
   switch (code & 07) {
   case 0:
-    if ((code & 040) == 0) {
-      switch (code & 030) {
-      case 000:
-        API::print_string("NOP");
-        return addr + 1;
-      case 010:
-        API::print_string("EX AF");
-        return addr + 1;
-      case 020:
-        // DJNZ disp
-        API::print_string("DJNZ ");
-        fmt_disp<API>(addr);
-        return addr + 2;
-      case 030:
-        // JR disp
-        API::print_string("JR ");
-        fmt_disp<API>(addr);
-        return addr + 2;
-      }
-    } else {
+    switch (code & 070) {
+    case 000:
+      API::print_string("NOP");
+      return addr + 1;
+    case 010:
+      API::print_string("EX AF");
+      return addr + 1;
+    case 020:
+      // DJNZ disp
+      API::print_string("DJNZ ");
+      fmt_disp<API>(addr);
+      return addr + 2;
+    case 030:
+      // JR disp
+      API::print_string("JR ");
+      fmt_disp<API>(addr);
+      return addr + 2;
+    default:
       // JR cond, disp
       API::print_string("JR ");
       API::print_string(COND_STR[(code & 030) >> 3]);
