@@ -298,7 +298,11 @@ uint16_t dasm_hi(uint16_t addr, uint8_t code) {
   case 5:
     break;
   case 6:
-    break;
+    // [ALU op] A, imm
+    API::print_string(ALU_STR[(code & 070) >> 3]);
+    API::print_string(" A,");
+    fmt_imm<API>(addr);
+    return addr + 2;
   case 7:
     break;
   }
