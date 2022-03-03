@@ -83,6 +83,20 @@ enum Rot {
 
 constexpr const char* ROT_STR[] = { "RLC", "RRC", "RL", "RR", "SLA", "SRA", "SLL", "SRL" };
 
+// Misc AF ops 3-bit encoding
+enum Misc {
+  MISC_RLCA = 0,
+  MISC_RRCA = 1,
+  MISC_RLA = 2,
+  MISC_RRA = 3,
+  MISC_DAA = 4,
+  MISC_CPL = 5,
+  MISC_SCF = 6,
+  MISC_CCF = 7,
+};
+
+constexpr const char* MISC_STR[] = { "RLCA", "RRCA", "RLA", "RRA", "DAA", "CPL", "SCF", "CCF" };
+
 // Format 1-byte immediate following opcode
 template <typename API>
 void fmt_imm(uint16_t addr) {
@@ -251,7 +265,8 @@ uint16_t dasm_lo(uint16_t addr, uint8_t code) {
     fmt_imm<API>(addr);
     return addr + 2;
   case 7:
-    break;
+    API::print_string(MISC_STR[(code & 070) >> 3]);
+    return addr + 1;
   }
   return addr + 1;
 }
