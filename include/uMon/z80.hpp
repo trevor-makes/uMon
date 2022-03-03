@@ -107,16 +107,16 @@ enum Misc {
 
 constexpr const char* MISC_STR[] = { "RLCA", "RRCA", "RLA", "RRA", "DAA", "CPL", "SCF", "CCF" };
 
-// Format 1-byte immediate following opcode
+// Print 1-byte immediate following opcode
 template <typename API>
-void fmt_imm(uint16_t addr) {
+void print_imm_byte(uint16_t addr) {
   API::print_char('$');
   fmt_hex8(API::print_char, API::read_byte(addr + 1));
 }
 
-// Format 2-byte immediate following opcode
+// Print 2-byte immediate following opcode
 template <typename API>
-void fmt_imm2(uint16_t addr) {
+void print_imm_word(uint16_t addr) {
   API::print_char('$');
   fmt_hex8(API::print_char, API::read_byte(addr + 2));
   fmt_hex8(API::print_char, API::read_byte(addr + 1));
@@ -124,7 +124,7 @@ void fmt_imm2(uint16_t addr) {
 
 // Format displacement following relative jump
 template <typename API>
-void fmt_disp(uint16_t addr) {
+void print_disp(uint16_t addr) {
   API::print_char('$');
   int8_t disp = API::read_byte(addr + 1);
   fmt_hex16(API::print_char, addr + 2 + disp);
@@ -137,13 +137,15 @@ uint16_t dasm_cb(uint16_t addr) {
   const uint8_t op = (code & 0300) >> 6;
   const uint8_t index = (code & 070) >> 3;
   const uint8_t reg = code & 07;
+  // Print opcode
   API::print_string(op == 0 ? ROT_STR[index] : CB_STR[op]);
   API::print_char(' ');
-  // Print bit index
+  // Print bit index (only for BIT/RES/SET)
   if (op != 0) {
     API::print_char('0' + index);
     API::print_char(',');
   }
+  // Print register operand
   API::print_string(REG_STR[reg]);
   return addr + 1;
 }
@@ -161,19 +163,19 @@ uint16_t dasm_jr(uint16_t addr, uint8_t code) {
   case 020:
     // DJNZ disp
     API::print_string("DJNZ ");
-    fmt_disp<API>(addr);
+    print_disp<API>(addr);
     return addr + 2;
   case 030:
     // JR disp
     API::print_string("JR ");
-    fmt_disp<API>(addr);
+    print_disp<API>(addr);
     return addr + 2;
   default:
     // JR cond, disp
     API::print_string("JR ");
     API::print_string(COND_STR[(code & 030) >> 3]);
     API::print_char(',');
-    fmt_disp<API>(addr);
+    print_disp<API>(addr);
     return addr + 2;
   }
 }
@@ -195,7 +197,7 @@ uint16_t dasm_ld_ind(uint16_t addr, uint8_t code) {
   if (use_pair) {
     API::print_string(PAIR_STR[(code & 020) >> 4]);
   } else {
-    fmt_imm2<API>(addr);
+    print_imm_word<API>(addr);
   }
   API::print_char(')');
   // Print A/HL second for stores
@@ -233,7 +235,7 @@ uint16_t dasm_lo(uint16_t addr, uint8_t code) {
       API::print_string("LD ");
       API::print_string(PAIR_STR[(code & 060) >> 4]);
       API::print_char(',');
-      fmt_imm2<API>(addr);
+      print_imm_word<API>(addr);
       return addr + 3;
     } else {
       // ADD HL, pair
@@ -248,7 +250,7 @@ uint16_t dasm_lo(uint16_t addr, uint8_t code) {
     API::print_string("LD ");
     API::print_string(REG_STR[(code & 070) >> 3]);
     API::print_char(',');
-    fmt_imm<API>(addr);
+    print_imm_byte<API>(addr);
     return addr + 2;
   case 7:
     // Misc AF ops with no operands
@@ -284,7 +286,7 @@ uint16_t dasm_hi(uint16_t addr, uint8_t code) {
     API::print_string("JP ");
     API::print_string(COND_STR[(code & 070) >> 3]);
     API::print_char(',');
-    fmt_imm2<API>(addr);
+    print_imm_word<API>(addr);
     return addr + 3;
   case 3:
     break;
@@ -293,7 +295,7 @@ uint16_t dasm_hi(uint16_t addr, uint8_t code) {
     API::print_string("CALL ");
     API::print_string(COND_STR[(code & 070) >> 3]);
     API::print_char(',');
-    fmt_imm2<API>(addr);
+    print_imm_word<API>(addr);
     return addr + 3;
   case 5:
     if ((code & 010) == 0) {
@@ -303,14 +305,14 @@ uint16_t dasm_hi(uint16_t addr, uint8_t code) {
     } else {
       // NOTE $DD, $ED, $FD should have already been handled
       API::print_string("CALL ");
-      fmt_imm2<API>(addr);
+      print_imm_word<API>(addr);
       return addr + 3;
     }
   case 6:
     // [ALU op] A, imm
     API::print_string(ALU_STR[(code & 070) >> 3]);
     API::print_string(" A,");
-    fmt_imm<API>(addr);
+    print_imm_byte<API>(addr);
     return addr + 2;
   case 7:
     // RST zp
