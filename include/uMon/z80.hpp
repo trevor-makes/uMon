@@ -126,8 +126,49 @@ void print_imm_word(uint16_t addr) {
 template <typename API>
 void print_disp(uint16_t addr) {
   API::print_char('$');
-  int8_t disp = API::read_byte(addr + 1);
+  const int8_t disp = API::read_byte(addr + 1);
   fmt_hex16(API::print_char, addr + 2 + disp);
+}
+
+template <typename API>
+uint16_t dasm_block(uint16_t addr, uint8_t code) {
+  static constexpr const char* OPS[] = { "LD", "CP", "IN", "OUT" };
+  const uint8_t op = (code & 03);
+  const bool is_rep = (code & 020) == 020;
+  const bool is_dec = (code & 010) == 010;
+  const bool is_ot = is_rep && op == 3;
+  API::print_string(is_ot ? "OT" : OPS[op]);
+  API::print_char(is_dec ? 'D' : 'I');
+  if (is_rep) { API::print_char('R'); }
+  return addr + 1;
+}
+
+// Disassemble extended opcodes prefixed by $ED
+template <typename API>
+uint16_t dasm_ed(uint16_t addr) {
+  const uint8_t code = API::read_byte(addr);
+  switch (code & 0300) {
+  case 0100:
+    switch (code & 07) {
+    case 0:
+    case 1:
+    case 2:
+    case 3:
+    case 4:
+    case 5:
+    case 6:
+    case 7:
+      break;
+    }
+    break;
+  case 0200:
+    if ((code & 044) == 040) {
+      return dasm_block<API>(addr, code);
+    }
+    break;
+  }
+  API::print_char('?');
+  return addr + 1;
 }
 
 // Disassemble extended opcodes prefixed by $CB
@@ -136,7 +177,7 @@ uint16_t dasm_cb(uint16_t addr) {
   const uint8_t code = API::read_byte(addr);
   const uint8_t op = (code & 0300) >> 6;
   const uint8_t index = (code & 070) >> 3;
-  const uint8_t reg = code & 07;
+  const uint8_t reg = (code & 07);
   // Print opcode
   API::print_string(op == 0 ? ROT_STR[index] : CB_STR[op]);
   API::print_char(' ');
@@ -366,10 +407,11 @@ uint16_t dasm_base(uint16_t addr) {
     return addr + 1;
   case 0xCB:
     return dasm_cb<API>(addr + 1);
-  case 0xDD:
   case 0xED:
+    return dasm_ed<API>(addr + 1);
+  case 0xDD:
   case 0xFD:
-    // TODO handle prefix bytes
+    // TODO handle IX/IY prefix bytes
     return addr + 1;
   }
   switch (code & 0300) {
