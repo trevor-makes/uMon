@@ -397,6 +397,7 @@ uint16_t dasm_base(uint16_t addr) {
 template <typename API>
 void impl_dasm(uint16_t addr, uint16_t end) {
   for (;;) {
+    // Print "addr:  opcode"
     fmt_hex16(API::print_char, addr);
     API::print_string(":  ");
     uint16_t next = dasm_base<API>(addr);

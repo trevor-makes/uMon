@@ -45,7 +45,7 @@ void fmt_ascii(F&& print, uint8_t c) {
 }
 
 template <typename API>
-void fmt_prompt(const char* cmd, uint16_t addr) {
+void set_prompt(const char* cmd, uint16_t addr) {
   API::prompt_string(cmd);
   API::prompt_string(" $");
   fmt_hex16(API::prompt_char, addr);
