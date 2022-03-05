@@ -131,6 +131,35 @@ void print_disp(uint16_t addr) {
 }
 
 template <typename API>
+uint16_t dasm_hl_adc(uint16_t addr, uint8_t code) {
+  const bool is_adc = (code & 010) == 010;
+  const uint8_t pair = (code & 060) >> 4;
+  API::print_string(is_adc ? "ADC" : "SBC");
+  API::print_string(" HL,");
+  API::print_string(PAIR_STR[pair]);
+  return addr + 1;
+}
+
+template <typename API>
+uint16_t dasm_ld_pair_ind(uint16_t addr, uint8_t code) {
+  const bool is_load = (code & 010) == 010;
+  const uint8_t pair = (code & 060) >> 4;
+  API::print_string("LD ");
+  if (is_load) {
+    API::print_string(PAIR_STR[pair]);
+    API::print_char(',');
+  }
+  API::print_char('(');
+  print_imm_word<API>(addr);
+  API::print_char(')');
+  if (!is_load) {
+    API::print_char(',');
+    API::print_string(PAIR_STR[pair]);
+  }
+  return addr + 3;
+}
+
+template <typename API>
 uint16_t dasm_block(uint16_t addr, uint8_t code) {
   static constexpr const char* OPS[] = { "LD", "CP", "IN", "OUT" };
   const uint8_t op = (code & 03);
@@ -152,9 +181,15 @@ uint16_t dasm_ed(uint16_t addr) {
     switch (code & 07) {
     case 0:
     case 1:
+      break;
     case 2:
+      return dasm_hl_adc<API>(addr, code);
     case 3:
+      return dasm_ld_pair_ind<API>(addr, code);
     case 4:
+      // NOTE only 0104/0x44 is documented, but the 2nd octal digit is ignored
+      API::print_string("NEG");
+      return addr + 1;
     case 5:
     case 6:
     case 7:
