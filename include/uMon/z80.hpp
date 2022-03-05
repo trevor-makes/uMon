@@ -131,6 +131,17 @@ void print_disp(uint16_t addr) {
 }
 
 template <typename API>
+uint16_t decode_in_out_c(uint16_t addr, uint8_t code) {
+  const bool is_out = (code & 01) == 01;
+  const uint8_t reg = (code & 070) >> 3;
+  API::print_string(is_out ? "OUT (C)," : "IN ");
+  // NOTE reg (HL) is undefined; OUT sends 0 and IN sets flags without storing
+  API::print_string(reg == 6 ? "?" : REG_STR[reg]);
+  if (!is_out) { API::print_string(",(C)"); }
+  return addr + 1;
+}
+
+template <typename API>
 uint16_t decode_hl_adc(uint16_t addr, uint8_t code) {
   const bool is_adc = (code & 010) == 010;
   const uint8_t pair = (code & 060) >> 4;
@@ -181,18 +192,14 @@ uint16_t decode_ld_ir(uint16_t addr, uint8_t code) {
 
 template <typename API>
 uint16_t decode_block_ops(uint16_t addr, uint8_t code) {
-  if ((code & 044) != 040) {
-    API::print_char('?');
-  } else {
-    static constexpr const char* OPS[] = { "LD", "CP", "IN", "OUT" };
-    const uint8_t op = (code & 03);
-    const bool is_rep = (code & 020) == 020;
-    const bool is_dec = (code & 010) == 010;
-    const bool is_ot = is_rep && op == 3;
-    API::print_string(is_ot ? "OT" : OPS[op]);
-    API::print_char(is_dec ? 'D' : 'I');
-    if (is_rep) { API::print_char('R'); }
-  }
+  static constexpr const char* OPS[] = { "LD", "CP", "IN", "OUT" };
+  const uint8_t op = (code & 03);
+  const bool is_rep = (code & 020) == 020;
+  const bool is_dec = (code & 010) == 010;
+  const bool is_ot = is_rep && op == 3;
+  API::print_string(is_ot ? "OT" : OPS[op]);
+  API::print_char(is_dec ? 'D' : 'I');
+  if (is_rep) { API::print_char('R'); }
   return addr + 1;
 }
 
@@ -200,12 +207,10 @@ uint16_t decode_block_ops(uint16_t addr, uint8_t code) {
 template <typename API>
 uint16_t dasm_ed(uint16_t addr) {
   const uint8_t code = API::read_byte(addr);
-  switch (code & 0300) {
-  case 0100:
+  if ((code & 0300) == 0100) {
     switch (code & 07) {
-    case 0:
-    case 1:
-      break;
+    case 0: case 1:
+      return decode_in_out_c<API>(addr, code);
     case 2:
       return decode_hl_adc<API>(addr, code);
     case 3:
@@ -227,8 +232,7 @@ uint16_t dasm_ed(uint16_t addr) {
     case 7:
       return decode_ld_ir<API>(addr, code);
     }
-    break;
-  case 0200:
+  } else if ((code & 0344) == 0240) {
     return decode_block_ops<API>(addr, code);
   }
   API::print_char('?');
