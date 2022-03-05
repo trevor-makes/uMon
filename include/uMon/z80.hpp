@@ -160,15 +160,39 @@ uint16_t decode_ld_pair_ind(uint16_t addr, uint8_t code) {
 }
 
 template <typename API>
+uint16_t decode_ld_ir(uint16_t addr, uint8_t code) {
+  const bool is_rot = (code & 040) == 040; // is RRD/RLD
+  const bool is_load = (code & 020) == 020; // is LD A,I/R
+  const bool is_rl = (code & 010) == 010; // is LD -R- or RLD
+  if (is_rot) {
+    if (is_load) {
+      API::print_char('?');
+    } else {
+      API::print_string(is_rl ? "RLD" : "RRD");
+    }
+  } else {
+    API::print_string("LD ");
+    if (is_load) { API::print_string("A,"); }
+    API::print_char(is_rl ? 'R' : 'I');
+    if (!is_load) { API::print_string(",A"); }
+  }
+  return addr + 1;
+}
+
+template <typename API>
 uint16_t decode_block_ops(uint16_t addr, uint8_t code) {
-  static constexpr const char* OPS[] = { "LD", "CP", "IN", "OUT" };
-  const uint8_t op = (code & 03);
-  const bool is_rep = (code & 020) == 020;
-  const bool is_dec = (code & 010) == 010;
-  const bool is_ot = is_rep && op == 3;
-  API::print_string(is_ot ? "OT" : OPS[op]);
-  API::print_char(is_dec ? 'D' : 'I');
-  if (is_rep) { API::print_char('R'); }
+  if ((code & 044) != 040) {
+    API::print_char('?');
+  } else {
+    static constexpr const char* OPS[] = { "LD", "CP", "IN", "OUT" };
+    const uint8_t op = (code & 03);
+    const bool is_rep = (code & 020) == 020;
+    const bool is_dec = (code & 010) == 010;
+    const bool is_ot = is_rep && op == 3;
+    API::print_string(is_ot ? "OT" : OPS[op]);
+    API::print_char(is_dec ? 'D' : 'I');
+    if (is_rep) { API::print_char('R'); }
+  }
   return addr + 1;
 }
 
@@ -201,14 +225,11 @@ uint16_t dasm_ed(uint16_t addr) {
       API::print_char(IM[(code & 030) >> 3]);
       return addr + 1;
     case 7:
-      break;
+      return decode_ld_ir<API>(addr, code);
     }
     break;
   case 0200:
-    if ((code & 044) == 040) {
-      return decode_block_ops<API>(addr, code);
-    }
-    break;
+    return decode_block_ops<API>(addr, code);
   }
   API::print_char('?');
   return addr + 1;
