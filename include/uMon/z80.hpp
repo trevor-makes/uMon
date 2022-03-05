@@ -191,7 +191,15 @@ uint16_t dasm_ed(uint16_t addr) {
       API::print_string("NEG");
       return addr + 1;
     case 5:
+      // NOTE only 0x45 RETN is documented
+      API::print_string(code == 0x4D ? "RETI" : "RETN");
+      return addr + 1;
     case 6:
+      // NOTE only 0x46, 0x56, 0x5E are documented; '?' sets an undefined mode
+      static constexpr const char IM[] = { '0', '?', '1', '2' };
+      API::print_string("IM ");
+      API::print_char(IM[(code & 030) >> 3]);
+      return addr + 1;
     case 7:
       break;
     }
