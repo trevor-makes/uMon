@@ -12,7 +12,7 @@ namespace uMon {
 
 // Dump memory as hex/ascii from row to end, inclusive
 template <typename API, uint8_t COL_SIZE = 16>
-void impl_hex(uint16_t row, uint16_t end) {
+uint16_t impl_hex(uint16_t row, uint16_t end) {
   uint8_t row_data[COL_SIZE];
   for (;;) {
     API::read_bytes(row, row_data);
@@ -38,8 +38,11 @@ void impl_hex(uint16_t row, uint16_t end) {
     API::print_string("\"\n");
 
     // Do while end does not overlap with row
-    if (uint16_t(end - row) < COL_SIZE) break;
-    row += COL_SIZE;
+    uint16_t next = row + COL_SIZE;
+    if (uint16_t(end - row) < COL_SIZE) {
+      return next;
+    }
+    row = next;
   }
 }
 
@@ -53,10 +56,12 @@ void impl_memset(uint16_t start, uint16_t end, uint8_t pattern) {
 
 // Write string from start until null terminator
 template <typename API>
-void impl_strcpy(uint16_t start, const char* str) {
+uint16_t impl_strcpy(uint16_t start, const char* str) {
   for (;;) {
     char c = *str++;
-    if (c == '\0') break;
+    if (c == '\0') {
+      return start;
+    }
     API::write_byte(start++, c);
   }
 }
@@ -65,7 +70,8 @@ template <typename API, uint8_t COL_SIZE = 16>
 void cmd_hex(uCLI::Args args) {
   uint16_t start = args.has_next() ? parse_u32(args.next()) : 0;
   uint16_t size = args.has_next() ? parse_u32(args.next()) : COL_SIZE;
-  impl_hex<API, COL_SIZE>(start, start + size - 1);
+  uint16_t next = impl_hex<API, COL_SIZE>(start, start + size - 1);
+  set_prompt<API>(args.command(), next);
 }
 
 template <typename API>
@@ -81,12 +87,12 @@ void cmd_set(uCLI::Args args) {
   uint16_t start = uMon::parse_u32(argv[0]);
   if (are_str[1]) {
     // Set mem[start:] to string
-    impl_strcpy<API>(start, argv[1]); // TODO should this just be an API function?
+    uint16_t next = impl_strcpy<API>(start, argv[1]);
+    set_prompt<API>(args.command(), next);
   } else if (argc == 2) {
     // Set mem[start] to pattern
     uint8_t pattern = uMon::parse_u32(argv[1]);
     impl_memset<API>(start, start, pattern);
-    // Set CLI prompt to repeat set at the following address
     set_prompt<API>(args.command(), start + 1);
   } else if (argc >= 3) {
     // Set mem[start:start+size] to pattern
