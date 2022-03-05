@@ -130,6 +130,7 @@ void print_disp(uint16_t addr) {
   fmt_hex16(API::print_char, addr + 2 + disp);
 }
 
+// Decode IN/OUT (c): ED [01 --- 00-]
 template <typename API>
 uint16_t decode_in_out_c(uint16_t addr, uint8_t code) {
   const bool is_out = (code & 01) == 01;
@@ -141,6 +142,7 @@ uint16_t decode_in_out_c(uint16_t addr, uint8_t code) {
   return addr + 1;
 }
 
+// Decode 16-bit ADC/SBC: ED [01 --- 010]
 template <typename API>
 uint16_t decode_hl_adc(uint16_t addr, uint8_t code) {
   const bool is_adc = (code & 010) == 010;
@@ -151,6 +153,7 @@ uint16_t decode_hl_adc(uint16_t addr, uint8_t code) {
   return addr + 1;
 }
 
+// Decode 16-bit LD ind: ED [01 --- 011]
 template <typename API>
 uint16_t decode_ld_pair_ind(uint16_t addr, uint8_t code) {
   const bool is_load = (code & 010) == 010;
@@ -170,6 +173,7 @@ uint16_t decode_ld_pair_ind(uint16_t addr, uint8_t code) {
   return addr + 3;
 }
 
+// Decode LD I/R and RRD/RLD: ED [01 --- 111]
 template <typename API>
 uint16_t decode_ld_ir(uint16_t addr, uint8_t code) {
   const bool is_rot = (code & 040) == 040; // is RRD/RLD
@@ -190,6 +194,7 @@ uint16_t decode_ld_ir(uint16_t addr, uint8_t code) {
   return addr + 1;
 }
 
+// Decode block transfer ops: ED [10 1-- 0--]
 template <typename API>
 uint16_t decode_block_ops(uint16_t addr, uint8_t code) {
   static constexpr const char* OPS[] = { "LD", "CP", "IN", "OUT" };
@@ -259,7 +264,7 @@ uint16_t dasm_cb(uint16_t addr) {
   return addr + 1;
 }
 
-// Disassemble relative jumps (octal 0Y0)
+// Disassemble relative jumps: [00 --- 000]
 template <typename API>
 uint16_t decode_jr(uint16_t addr, uint8_t code) {
   switch (code & 070) {
@@ -289,7 +294,7 @@ uint16_t decode_jr(uint16_t addr, uint8_t code) {
   }
 }
 
-// Disassemble indirect loads (octal 0Y2)
+// Disassemble indirect loads: [00 --- 010]
 template <typename API>
 uint16_t decode_ld_ind(uint16_t addr, uint8_t code) {
   // Decode 070 bitfield
@@ -321,7 +326,7 @@ uint16_t decode_ld_ind(uint16_t addr, uint8_t code) {
   }
 }
 
-// Disassemble INC/DEC (octal 0Y3, 0Y4, 0Y5)
+// Disassemble INC/DEC: [00 --- 011/100/101]
 template <typename API>
 uint16_t decode_inc_dec(uint16_t addr, uint8_t code) {
   const bool is_pair = (code & 04) == 0;
