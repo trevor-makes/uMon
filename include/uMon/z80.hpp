@@ -131,7 +131,7 @@ void print_disp(uint16_t addr) {
 }
 
 template <typename API>
-uint16_t dasm_hl_adc(uint16_t addr, uint8_t code) {
+uint16_t decode_hl_adc(uint16_t addr, uint8_t code) {
   const bool is_adc = (code & 010) == 010;
   const uint8_t pair = (code & 060) >> 4;
   API::print_string(is_adc ? "ADC" : "SBC");
@@ -141,7 +141,7 @@ uint16_t dasm_hl_adc(uint16_t addr, uint8_t code) {
 }
 
 template <typename API>
-uint16_t dasm_ld_pair_ind(uint16_t addr, uint8_t code) {
+uint16_t decode_ld_pair_ind(uint16_t addr, uint8_t code) {
   const bool is_load = (code & 010) == 010;
   const uint8_t pair = (code & 060) >> 4;
   API::print_string("LD ");
@@ -160,7 +160,7 @@ uint16_t dasm_ld_pair_ind(uint16_t addr, uint8_t code) {
 }
 
 template <typename API>
-uint16_t dasm_block(uint16_t addr, uint8_t code) {
+uint16_t decode_block_ops(uint16_t addr, uint8_t code) {
   static constexpr const char* OPS[] = { "LD", "CP", "IN", "OUT" };
   const uint8_t op = (code & 03);
   const bool is_rep = (code & 020) == 020;
@@ -183,9 +183,9 @@ uint16_t dasm_ed(uint16_t addr) {
     case 1:
       break;
     case 2:
-      return dasm_hl_adc<API>(addr, code);
+      return decode_hl_adc<API>(addr, code);
     case 3:
-      return dasm_ld_pair_ind<API>(addr, code);
+      return decode_ld_pair_ind<API>(addr, code);
     case 4:
       // NOTE only 0104/0x44 is documented, but the 2nd octal digit is ignored
       API::print_string("NEG");
@@ -198,7 +198,7 @@ uint16_t dasm_ed(uint16_t addr) {
     break;
   case 0200:
     if ((code & 044) == 040) {
-      return dasm_block<API>(addr, code);
+      return decode_block_ops<API>(addr, code);
     }
     break;
   }
@@ -228,7 +228,7 @@ uint16_t dasm_cb(uint16_t addr) {
 
 // Disassemble relative jumps (octal 0Y0)
 template <typename API>
-uint16_t dasm_jr(uint16_t addr, uint8_t code) {
+uint16_t decode_jr(uint16_t addr, uint8_t code) {
   switch (code & 070) {
   case 000:
     API::print_string("NOP");
@@ -258,7 +258,7 @@ uint16_t dasm_jr(uint16_t addr, uint8_t code) {
 
 // Disassemble indirect loads (octal 0Y2)
 template <typename API>
-uint16_t dasm_ld_ind(uint16_t addr, uint8_t code) {
+uint16_t decode_ld_ind(uint16_t addr, uint8_t code) {
   // Decode 070 bitfield
   const bool is_store = (code & 010) == 0; // A/HL is src instead of dst
   const bool use_hl = (code & 060) == 040; // Use HL instead of A
@@ -290,7 +290,7 @@ uint16_t dasm_ld_ind(uint16_t addr, uint8_t code) {
 
 // Disassemble INC/DEC (octal 0Y3, 0Y4, 0Y5)
 template <typename API>
-uint16_t dasm_inc_dec(uint16_t addr, uint8_t code) {
+uint16_t decode_inc_dec(uint16_t addr, uint8_t code) {
   const bool is_pair = (code & 04) == 0;
   const bool is_inc = is_pair ? (code & 010) == 0 : (code & 01) == 0;
   uint8_t reg = is_pair ? (code & 060) >> 4 : (code & 070) >> 3;
@@ -301,10 +301,10 @@ uint16_t dasm_inc_dec(uint16_t addr, uint8_t code) {
 
 // Disassemble opcodes with leading octal digit 0
 template <typename API>
-uint16_t dasm_lo(uint16_t addr, uint8_t code) {
+uint16_t dasm_base_lo(uint16_t addr, uint8_t code) {
   switch (code & 07) {
   case 0:
-    return dasm_jr<API>(addr, code);
+    return decode_jr<API>(addr, code);
   case 1:
     if ((code & 010) == 0) {
       // LD rr, nn
@@ -320,7 +320,7 @@ uint16_t dasm_lo(uint16_t addr, uint8_t code) {
       return addr + 1;
     }
   case 2:
-    return dasm_ld_ind<API>(addr, code);
+    return decode_ld_ind<API>(addr, code);
   case 6:
     // LD r, n
     API::print_string("LD ");
@@ -333,13 +333,13 @@ uint16_t dasm_lo(uint16_t addr, uint8_t code) {
     API::print_string(MISC_STR[(code & 070) >> 3]);
     return addr + 1;
   default:
-    return dasm_inc_dec<API>(addr, code);
+    return decode_inc_dec<API>(addr, code);
   }
 }
 
 // Disassemble opcodes with leading octal digit 3
 template <typename API>
-uint16_t dasm_hi(uint16_t addr, uint8_t code) {
+uint16_t dasm_base_hi(uint16_t addr, uint8_t code) {
   switch (code & 07) {
   case 0:
     // RET cc
@@ -451,7 +451,7 @@ uint16_t dasm_base(uint16_t addr) {
   }
   switch (code & 0300) {
   case 0000:
-    return dasm_lo<API>(addr, code);
+    return dasm_base_lo<API>(addr, code);
   case 0100:
     // LD r, r
     API::print_string("LD ");
@@ -466,7 +466,7 @@ uint16_t dasm_base(uint16_t addr) {
     API::print_string(REG_STR[(code & 07)]);
     return addr + 1;
   case 0300:
-    return dasm_hi<API>(addr, code);
+    return dasm_base_hi<API>(addr, code);
   }
   return addr + 1;
 }
