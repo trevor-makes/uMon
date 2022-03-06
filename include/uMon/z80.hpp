@@ -130,17 +130,18 @@ void print_disp(uint16_t addr) {
   fmt_hex16(API::print_char, addr + 2 + disp);
 }
 
+// Print IX/IY given prefix
 template <typename API>
-void print_prefix(uint8_t prefix) {
+void print_index_reg(uint8_t prefix) {
   API::print_string(prefix == 0xDD ? "IX" : "IY");
 }
 
 // Print (IX/IY+disp) given address of displacement byte
 template <typename API>
-void print_index(uint16_t addr, uint8_t prefix) {
+void print_index_ind(uint16_t addr, uint8_t prefix) {
   const int8_t disp = API::read_byte(addr);
   API::print_char('(');
-  print_prefix<API>(prefix);
+  print_index_reg<API>(prefix);
   if (disp != 0) {
     // Print absolute displacement in hex
     API::print_string(disp < 0 ? "-$" : "+$");
@@ -298,7 +299,7 @@ uint16_t dasm_cb(uint16_t addr, uint8_t prefix) {
       API::print_char(',');
     }
     // Print (IX/IY+disp)
-    print_index<API>(addr, prefix);
+    print_index_ind<API>(addr, prefix);
     return addr + 2;
   }
 }
@@ -522,29 +523,35 @@ uint16_t decode_ld_r_r(uint16_t addr, uint8_t code, uint8_t prefix) {
     API::print_string(REG_STR[src]);
     return addr + 1;
   } else {
+    // If (HL) used, replace with (IX/IY+disp)
     const bool has_dest_index = dest == REG_M;
     const bool has_src_index = src == REG_M;
     const bool has_index = has_dest_index || has_src_index;
+    // Otherwise, if H/L used, replace with IXH/IXL
     const bool has_dest_alt = !has_index && (dest == REG_L || dest == REG_H);
     const bool has_src_alt = !has_index && (src == REG_L || src == REG_H);
     const bool has_alt = has_dest_alt || has_src_alt;
     if (has_index || has_alt) {
       API::print_string("LD ");
+      // Print destination register
       if (has_dest_index) {
-        print_index<API>(addr + 1, prefix);
+        print_index_ind<API>(addr + 1, prefix);
       } else {
-        if (has_dest_alt) { print_prefix<API>(prefix); }
+        if (has_dest_alt) { print_index_reg<API>(prefix); }
         API::print_string(REG_STR[dest]);
       }
       API::print_char(',');
+      // Print source register
       if (has_src_index) {
-        print_index<API>(addr + 1, prefix);
+        print_index_ind<API>(addr + 1, prefix);
       } else {
-        if (has_src_alt) { print_prefix<API>(prefix); }
+        if (has_src_alt) { print_index_reg<API>(prefix); }
         API::print_string(REG_STR[src]);
       }
+      // Skip displacement byte if (IX/IY+disp) is used
       return has_index ? addr + 2 : addr + 1;
     } else {
+      // Discard prefix if neither (HL) or H/L is used
       API::print_char('?');
       return addr;
     }
