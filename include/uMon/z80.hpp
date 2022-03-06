@@ -130,11 +130,17 @@ void print_disp(uint16_t addr) {
   fmt_hex16(API::print_char, addr + 2 + disp);
 }
 
+template <typename API>
+void print_prefix(uint8_t prefix) {
+  API::print_string(prefix == 0xDD ? "IX" : "IY");
+}
+
 // Print (IX/IY+disp) given address of displacement byte
 template <typename API>
 void print_index(uint16_t addr, uint8_t prefix) {
   const int8_t disp = API::read_byte(addr);
-  API::print_string(prefix == 0xDD ? "(IX" : "(IY");
+  API::print_char('(');
+  print_prefix<API>(prefix);
   if (disp != 0) {
     // Print absolute displacement in hex
     API::print_string(disp < 0 ? "-$" : "+$");
@@ -504,13 +510,59 @@ uint16_t dasm_base_hi(uint16_t addr, uint8_t code) {
   return addr + 1;
 }
 
+// Decode LD r, r: [01 --- ---]
+template <typename API>
+uint16_t decode_ld_r_r(uint16_t addr, uint8_t code, uint8_t prefix) {
+  const uint8_t dest = (code & 070) >> 3;
+  const uint8_t src = (code & 07);
+  if (prefix == 0) {
+    API::print_string("LD ");
+    API::print_string(REG_STR[dest]);
+    API::print_char(',');
+    API::print_string(REG_STR[src]);
+    return addr + 1;
+  } else {
+    const bool has_dest_index = dest == REG_M;
+    const bool has_src_index = src == REG_M;
+    const bool has_index = has_dest_index || has_src_index;
+    const bool has_dest_alt = !has_index && (dest == REG_L || dest == REG_H);
+    const bool has_src_alt = !has_index && (src == REG_L || src == REG_H);
+    const bool has_alt = has_dest_alt || has_src_alt;
+    if (has_index || has_alt) {
+      API::print_string("LD ");
+      if (has_dest_index) {
+        print_index<API>(addr + 1, prefix);
+      } else {
+        if (has_dest_alt) { print_prefix<API>(prefix); }
+        API::print_string(REG_STR[dest]);
+      }
+      API::print_char(',');
+      if (has_src_index) {
+        print_index<API>(addr + 1, prefix);
+      } else {
+        if (has_src_alt) { print_prefix<API>(prefix); }
+        API::print_string(REG_STR[src]);
+      }
+      return has_index ? addr + 2 : addr + 1;
+    } else {
+      API::print_char('?');
+      return addr;
+    }
+  }
+}
+
 template <typename API>
 uint16_t dasm_base(uint16_t addr, uint8_t prefix = 0) {
   uint8_t code = API::read_byte(addr);
   switch (code) {
   case 0x76:
-    API::print_string("HALT");
-    return addr + 1;
+    if (prefix == 0) {
+      API::print_string("HALT");
+      return addr + 1;
+    } else {
+      API::print_char('?');
+      return addr;
+    }
   case 0xCB:
     return dasm_cb<API>(addr + 1, prefix);
   case 0xDD: case 0xED: case 0xFD:
@@ -530,12 +582,7 @@ uint16_t dasm_base(uint16_t addr, uint8_t prefix = 0) {
   case 0000:
     return dasm_base_lo<API>(addr, code);
   case 0100:
-    // LD r, r
-    API::print_string("LD ");
-    API::print_string(REG_STR[(code & 070) >> 3]);
-    API::print_char(',');
-    API::print_string(REG_STR[(code & 07)]);
-    return addr + 1;
+    return decode_ld_r_r<API>(addr, code, prefix);
   case 0200:
     // [ALU op] A, r
     API::print_string(ALU_STR[(code & 070) >> 3]);
