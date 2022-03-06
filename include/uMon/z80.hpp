@@ -159,6 +159,18 @@ void print_prefix_reg(uint8_t reg, uint8_t prefix) {
   API::print_string(REG_STR[reg]);
 }
 
+template <typename API>
+void print_prefix_pair(uint8_t pair, uint8_t prefix, bool use_af = false) {
+  const bool has_prefix = prefix != 0;
+  if (has_prefix && pair == PAIR_HL) {
+    print_index_reg<API>(prefix);
+  } else if (use_af && pair == PAIR_SP) {
+    API::print_string("AF");
+  } else {
+    API::print_string(PAIR_STR[pair]);
+  }
+}
+
 // Decode IN/OUT (c): ED [01 --- 00-]
 template <typename API>
 uint16_t decode_in_out_c(uint16_t addr, uint8_t code) {
@@ -337,17 +349,48 @@ uint16_t decode_jr(uint16_t addr, uint8_t code) {
   }
 }
 
+template <typename API>
+uint16_t decode_ld_add_pair(uint16_t addr, uint8_t code, uint8_t prefix) {
+  const uint16_t pair = (code & 060) >> 4;
+  if ((code & 010) == 0) {
+    // LD rr, nn
+    API::print_string("LD ");
+    print_prefix_pair<API>(pair, prefix);
+    API::print_char(',');
+    print_imm_word<API>(addr);
+    return addr + 3;
+  } else {
+    // ADD HL, rr
+    API::print_string("ADD ");
+    print_prefix_pair<API>(PAIR_HL, prefix);
+    API::print_char(',');
+    print_prefix_pair<API>(pair, prefix);
+    return addr + 1;
+  }
+}
+
+// Print HL/IX/IY or A
+template <typename API>
+void print_hl_or_a(bool use_hl, uint8_t prefix) {
+  if (use_hl) {
+    print_prefix_pair<API>(PAIR_HL, prefix);
+  } else {
+    API::print_char('A');
+  }
+}
+
 // Disassemble indirect loads: [00 --- 010]
 template <typename API>
-uint16_t decode_ld_ind(uint16_t addr, uint8_t code) {
+uint16_t decode_ld_ind(uint16_t addr, uint8_t code, uint8_t prefix) {
   // Decode 070 bitfield
   const bool is_store = (code & 010) == 0; // A/HL is src instead of dst
   const bool use_hl = (code & 060) == 040; // Use HL instead of A
   const bool use_pair = (code & 040) == 0; // Use (BC/DE) instead of (nn)
   API::print_string("LD ");
-  // Print A/HL first for loads
+  // Print A/HL/IX/IY first for loads
   if (!is_store) {
-    API::print_string(use_hl ? "HL," : "A,");
+    print_hl_or_a<API>(use_hl, prefix);
+    API::print_char(',');
   }
   // Print (BC/DE) or (nn)
   API::print_char('(');
@@ -357,9 +400,10 @@ uint16_t decode_ld_ind(uint16_t addr, uint8_t code) {
     print_imm_word<API>(addr);
   }
   API::print_char(')');
-  // Print A/HL second for stores
+  // Print A/HL/IX/IY second for stores
   if (is_store) {
-    API::print_string(use_hl ? ",HL" : ",A");
+    API::print_char(',');
+    print_hl_or_a<API>(use_hl, prefix);
   }
   // Opcodes followed by (nn) consume 2 extra bytes
   if (use_pair) {
@@ -382,26 +426,14 @@ uint16_t decode_inc_dec(uint16_t addr, uint8_t code) {
 
 // Disassemble opcodes with leading octal digit 0
 template <typename API>
-uint16_t dasm_base_lo(uint16_t addr, uint8_t code) {
+uint16_t dasm_base_lo(uint16_t addr, uint8_t code, uint8_t prefix) {
   switch (code & 07) {
   case 0:
     return decode_jr<API>(addr, code);
   case 1:
-    if ((code & 010) == 0) {
-      // LD rr, nn
-      API::print_string("LD ");
-      API::print_string(PAIR_STR[(code & 060) >> 4]);
-      API::print_char(',');
-      print_imm_word<API>(addr);
-      return addr + 3;
-    } else {
-      // ADD HL, rr
-      API::print_string("ADD HL,");
-      API::print_string(PAIR_STR[(code & 060) >> 4]);
-      return addr + 1;
-    }
+    return decode_ld_add_pair<API>(addr, code, prefix);
   case 2:
-    return decode_ld_ind<API>(addr, code);
+    return decode_ld_ind<API>(addr, code, prefix);
   case 6:
     // LD r, n
     API::print_string("LD ");
@@ -593,7 +625,7 @@ uint16_t dasm_base(uint16_t addr, uint8_t prefix = 0) {
   }
   switch (code & 0300) {
   case 0000:
-    return dasm_base_lo<API>(addr, code);
+    return dasm_base_lo<API>(addr, code, prefix);
   case 0100:
     return decode_ld_r_r<API>(addr, code, prefix);
   case 0200:
