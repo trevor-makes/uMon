@@ -130,6 +130,19 @@ void print_disp(uint16_t addr) {
   fmt_hex16(API::print_char, addr + 2 + disp);
 }
 
+// Print (IX/IY+disp) given address of displacement byte
+template <typename API>
+void print_index(uint16_t addr, uint8_t prefix) {
+  const int8_t disp = API::read_byte(addr);
+  API::print_string(prefix == 0xDD ? "(IX" : "(IY");
+  if (disp != 0) {
+    // Print absolute displacement in hex
+    API::print_string(disp < 0 ? "-$" : "+$");
+    fmt_hex8(API::print_char, disp < 0 ? -disp : disp);
+  }
+  API::print_char(')');
+}
+
 // Decode IN/OUT (c): ED [01 --- 00-]
 template <typename API>
 uint16_t decode_in_out_c(uint16_t addr, uint8_t code) {
@@ -244,9 +257,9 @@ uint16_t dasm_ed(uint16_t addr) {
   return addr + 1;
 }
 
-// Disassemble extended opcodes prefixed by $CB
+// Decode and print $CB opcode, except reg which is returned
 template <typename API>
-uint16_t dasm_cb(uint16_t addr) {
+uint8_t decode_cb(uint16_t addr) {
   const uint8_t code = API::read_byte(addr);
   const uint8_t op = (code & 0300) >> 6;
   const uint8_t index = (code & 070) >> 3;
@@ -259,9 +272,29 @@ uint16_t dasm_cb(uint16_t addr) {
     API::print_char('0' + index);
     API::print_char(',');
   }
-  // Print register operand
-  API::print_string(REG_STR[reg]);
-  return addr + 1;
+  return reg;
+}
+
+// Disassemble extended opcodes prefixed by $CB
+template <typename API>
+uint16_t dasm_cb(uint16_t addr, uint8_t prefix) {
+  if (prefix == 0) {
+    const uint8_t reg = decode_cb<API>(addr);
+    // Print register operand
+    API::print_string(REG_STR[reg]);
+    return addr + 1;
+  } else {
+    const uint8_t reg = decode_cb<API>(addr + 1);
+    if (reg != REG_M) {
+      // NOTE operand other than (HL) is undocumented
+      // (IX/IY) is still used, but result also copied to reg
+      API::print_string(REG_STR[reg]);
+      API::print_char(',');
+    }
+    // Print (IX/IY+disp)
+    print_index<API>(addr, prefix);
+    return addr + 2;
+  }
 }
 
 // Disassemble relative jumps: [00 --- 000]
@@ -472,20 +505,26 @@ uint16_t dasm_base_hi(uint16_t addr, uint8_t code) {
 }
 
 template <typename API>
-uint16_t dasm_base(uint16_t addr) {
+uint16_t dasm_base(uint16_t addr, uint8_t prefix = 0) {
   uint8_t code = API::read_byte(addr);
   switch (code) {
   case 0x76:
     API::print_string("HALT");
     return addr + 1;
   case 0xCB:
-    return dasm_cb<API>(addr + 1);
-  case 0xED:
-    return dasm_ed<API>(addr + 1);
-  case 0xDD:
-  case 0xFD:
-    // TODO handle IX/IY prefix bytes
-    return addr + 1;
+    return dasm_cb<API>(addr + 1, prefix);
+  case 0xDD: case 0xED: case 0xFD:
+    if (prefix != 0) {
+      // Discard repeated prefixes
+      API::print_char('?');
+      return addr;
+    } else {
+      if (code == 0xED) {
+        return dasm_ed<API>(addr + 1);
+      } else {
+        return dasm_base<API>(addr + 1, code);
+      }
+    }
   }
   switch (code & 0300) {
   case 0000:
