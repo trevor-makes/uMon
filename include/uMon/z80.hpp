@@ -264,35 +264,25 @@ uint16_t dasm_ed(uint16_t addr) {
   return addr + 1;
 }
 
-// Decode and print $CB opcode, except reg which is returned
+// Disassemble extended opcodes prefixed by $CB
 template <typename API>
-uint8_t decode_cb(uint16_t addr) {
-  const uint8_t code = API::read_byte(addr);
+uint16_t decode_cb(uint16_t addr, uint8_t prefix) {
+  const bool has_prefix = prefix != 0;
+  // If prefixed, index displacement byte comes before opcode
+  const uint8_t code = API::read_byte(has_prefix ? addr + 1 : addr);
   const uint8_t op = (code & 0300) >> 6;
   const uint8_t index = (code & 070) >> 3;
   const uint8_t reg = (code & 07);
   // Print opcode
-  API::print_string(op == 0 ? ROT_STR[index] : CB_STR[op]);
+  API::print_string(op == CB_ROT ? ROT_STR[index] : CB_STR[op]);
   API::print_char(' ');
   // Print bit index (only for BIT/RES/SET)
-  if (op != 0) {
+  if (op != CB_ROT) {
     API::print_char('0' + index);
     API::print_char(',');
   }
-  return reg;
-}
-
-// Disassemble extended opcodes prefixed by $CB
-template <typename API>
-uint16_t dasm_cb(uint16_t addr, uint8_t prefix) {
-  if (prefix == 0) {
-    const uint8_t reg = decode_cb<API>(addr);
-    // Print register operand
-    API::print_string(REG_STR[reg]);
-    return addr + 1;
-  } else {
-    const uint8_t reg = decode_cb<API>(addr + 1);
-    if (reg != REG_M) {
+  if (has_prefix) {
+    if (op != CB_BIT && reg != REG_M) {
       // NOTE operand other than (HL) is undocumented
       // (IX/IY) is still used, but result also copied to reg
       API::print_string(REG_STR[reg]);
@@ -301,6 +291,10 @@ uint16_t dasm_cb(uint16_t addr, uint8_t prefix) {
     // Print (IX/IY+disp)
     print_index_ind<API>(addr, prefix);
     return addr + 2;
+  } else {
+    // Print register operand
+    API::print_string(REG_STR[reg]);
+    return addr + 1;
   }
 }
 
@@ -563,7 +557,7 @@ uint16_t dasm_base(uint16_t addr, uint8_t prefix = 0) {
   // Check for prefix codes first
   switch (code) {
   case 0xCB:
-    return dasm_cb<API>(addr + 1, prefix);
+    return decode_cb<API>(addr + 1, prefix);
   case 0xDD: case 0xED: case 0xFD:
     if (prefix != 0) {
       // Discard old prefix and start over
