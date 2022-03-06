@@ -514,6 +514,11 @@ uint16_t dasm_base_hi(uint16_t addr, uint8_t code) {
 // Decode LD r, r: [01 --- ---]
 template <typename API>
 uint16_t decode_ld_r_r(uint16_t addr, uint8_t code, uint8_t prefix) {
+  // Replace LD (HL),(HL) with HALT
+  if (code == 0x76) {
+    API::print_string("HALT");
+    return addr + 1;
+  }
   const uint8_t dest = (code & 070) >> 3;
   const uint8_t src = (code & 07);
   if (prefix == 0) {
@@ -528,53 +533,42 @@ uint16_t decode_ld_r_r(uint16_t addr, uint8_t code, uint8_t prefix) {
     const bool has_src_index = src == REG_M;
     const bool has_index = has_dest_index || has_src_index;
     // Otherwise, if H/L used, replace with IXH/IXL
+    // NOTE this effect is undocumented!
     const bool has_dest_alt = !has_index && (dest == REG_L || dest == REG_H);
     const bool has_src_alt = !has_index && (src == REG_L || src == REG_H);
-    const bool has_alt = has_dest_alt || has_src_alt;
-    if (has_index || has_alt) {
-      API::print_string("LD ");
-      // Print destination register
-      if (has_dest_index) {
-        print_index_ind<API>(addr + 1, prefix);
-      } else {
-        if (has_dest_alt) { print_index_reg<API>(prefix); }
-        API::print_string(REG_STR[dest]);
-      }
-      API::print_char(',');
-      // Print source register
-      if (has_src_index) {
-        print_index_ind<API>(addr + 1, prefix);
-      } else {
-        if (has_src_alt) { print_index_reg<API>(prefix); }
-        API::print_string(REG_STR[src]);
-      }
-      // Skip displacement byte if (IX/IY+disp) is used
-      return has_index ? addr + 2 : addr + 1;
+    API::print_string("LD ");
+    // Print destination register
+    if (has_dest_index) {
+      print_index_ind<API>(addr + 1, prefix);
     } else {
-      // Discard prefix if neither (HL) or H/L is used
-      API::print_char('?');
-      return addr;
+      if (has_dest_alt) { print_index_reg<API>(prefix); }
+      API::print_string(REG_STR[dest]);
     }
+    API::print_char(',');
+    // Print source register
+    if (has_src_index) {
+      print_index_ind<API>(addr + 1, prefix);
+    } else {
+      if (has_src_alt) { print_index_reg<API>(prefix); }
+      API::print_string(REG_STR[src]);
+    }
+    // Skip displacement byte if (IX/IY+disp) is used
+    return has_index ? addr + 2 : addr + 1;
   }
 }
 
 template <typename API>
 uint16_t dasm_base(uint16_t addr, uint8_t prefix = 0) {
   uint8_t code = API::read_byte(addr);
+  // Check for prefix codes first
   switch (code) {
-  case 0x76:
-    if (prefix == 0) {
-      API::print_string("HALT");
-      return addr + 1;
-    } else {
-      API::print_char('?');
-      return addr;
-    }
   case 0xCB:
     return dasm_cb<API>(addr + 1, prefix);
   case 0xDD: case 0xED: case 0xFD:
     if (prefix != 0) {
-      // Discard repeated prefixes
+      // Discard old prefix and start over
+      API::print_char('$');
+      fmt_hex8(API::print_char, prefix);
       API::print_char('?');
       return addr;
     } else {
