@@ -150,6 +150,15 @@ void print_index_ind(uint16_t addr, uint8_t prefix) {
   API::print_char(')');
 }
 
+template <typename API>
+void print_prefix_reg(uint8_t reg, uint8_t prefix) {
+  // Print IXL/IXH/IYL/IYH if prefixed
+  if (prefix != 0 && (reg == REG_L || reg == REG_H)) {
+    print_index_reg<API>(prefix);
+  }
+  API::print_string(REG_STR[reg]);
+}
+
 // Decode IN/OUT (c): ED [01 --- 00-]
 template <typename API>
 uint16_t decode_in_out_c(uint16_t addr, uint8_t code) {
@@ -523,28 +532,24 @@ uint16_t decode_ld_r_r(uint16_t addr, uint8_t code, uint8_t prefix) {
     return addr + 1;
   } else {
     // If (HL) used, replace with (IX/IY+disp)
+    // Otherwise, replace H/L with IXH/IXL
+    // NOTE the latter effect is undocumented!
     const bool has_dest_index = dest == REG_M;
     const bool has_src_index = src == REG_M;
     const bool has_index = has_dest_index || has_src_index;
-    // Otherwise, if H/L used, replace with IXH/IXL
-    // NOTE this effect is undocumented!
-    const bool has_dest_alt = !has_index && (dest == REG_L || dest == REG_H);
-    const bool has_src_alt = !has_index && (src == REG_L || src == REG_H);
     API::print_string("LD ");
     // Print destination register
     if (has_dest_index) {
       print_index_ind<API>(addr + 1, prefix);
     } else {
-      if (has_dest_alt) { print_index_reg<API>(prefix); }
-      API::print_string(REG_STR[dest]);
+      print_prefix_reg<API>(dest, has_index ? 0 : prefix);
     }
     API::print_char(',');
     // Print source register
     if (has_src_index) {
       print_index_ind<API>(addr + 1, prefix);
     } else {
-      if (has_src_alt) { print_index_reg<API>(prefix); }
-      API::print_string(REG_STR[src]);
+      print_prefix_reg<API>(src, has_index ? 0 : prefix);
     }
     // Skip displacement byte if (IX/IY+disp) is used
     return has_index ? addr + 2 : addr + 1;
