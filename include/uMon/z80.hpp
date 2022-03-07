@@ -107,19 +107,19 @@ enum Misc {
 
 constexpr const char* MISC_STR[] = { "RLCA", "RRCA", "RLA", "RRA", "DAA", "CPL", "SCF", "CCF" };
 
-// Print 1-byte immediate following opcode
+// Print 1-byte immediate located at addr
 template <typename API>
 void print_imm_byte(uint16_t addr) {
   API::print_char('$');
-  fmt_hex8(API::print_char, API::read_byte(addr + 1));
+  fmt_hex8(API::print_char, API::read_byte(addr));
 }
 
-// Print 2-byte immediate following opcode
+// Print 2-byte immediate with LSB at addr and MSB at addr + 1
 template <typename API>
 void print_imm_word(uint16_t addr) {
   API::print_char('$');
-  fmt_hex8(API::print_char, API::read_byte(addr + 2));
   fmt_hex8(API::print_char, API::read_byte(addr + 1));
+  fmt_hex8(API::print_char, API::read_byte(addr));
 }
 
 // Format displacement following relative jump
@@ -150,9 +150,9 @@ void print_index_ind(uint16_t addr, uint8_t prefix) {
   API::print_char(')');
 }
 // Print reg, optionally with IX/IY prefix, or (HL)
-// (IX/IY+disp) should be handled separately
+// (IX/IY+disp) should be handled with print_index_ind instead
 template <typename API>
-void print_prefix_reg(uint8_t reg, uint8_t prefix) {
+void print_reg(uint8_t reg, uint8_t prefix) {
   if (prefix != 0 && (reg == REG_L || reg == REG_H)) {
     print_index_reg<API>(prefix);
   }
@@ -161,7 +161,7 @@ void print_prefix_reg(uint8_t reg, uint8_t prefix) {
 
 // Print pair, replacing HL with IX/IY if prefixed, and SP with AF if flagged
 template <typename API>
-void print_prefix_pair(uint8_t pair, uint8_t prefix, bool use_af = false) {
+void print_pair(uint8_t pair, uint8_t prefix, bool use_af = false) {
   const bool has_prefix = prefix != 0;
   if (has_prefix && pair == PAIR_HL) {
     print_index_reg<API>(prefix);
@@ -206,7 +206,7 @@ uint16_t decode_ld_pair_ind(uint16_t addr, uint8_t code) {
     API::print_char(',');
   }
   API::print_char('(');
-  print_imm_word<API>(addr);
+  print_imm_word<API>(addr + 1);
   API::print_char(')');
   if (!is_load) {
     API::print_char(',');
@@ -350,22 +350,24 @@ uint16_t decode_jr(uint16_t addr, uint8_t code) {
   }
 }
 
+// Disassemble LD/ADD pair: [00 --- 001]
 template <typename API>
 uint16_t decode_ld_add_pair(uint16_t addr, uint8_t code, uint8_t prefix) {
+  const bool is_load = (code & 010) == 0;
   const uint16_t pair = (code & 060) >> 4;
-  if ((code & 010) == 0) {
+  if (is_load) {
     // LD rr, nn
     API::print_string("LD ");
-    print_prefix_pair<API>(pair, prefix);
+    print_pair<API>(pair, prefix);
     API::print_char(',');
-    print_imm_word<API>(addr);
+    print_imm_word<API>(addr + 1);
     return addr + 3;
   } else {
     // ADD HL, rr
     API::print_string("ADD ");
-    print_prefix_pair<API>(PAIR_HL, prefix);
+    print_pair<API>(PAIR_HL, prefix);
     API::print_char(',');
-    print_prefix_pair<API>(pair, prefix);
+    print_pair<API>(pair, prefix);
     return addr + 1;
   }
 }
@@ -374,7 +376,7 @@ uint16_t decode_ld_add_pair(uint16_t addr, uint8_t code, uint8_t prefix) {
 template <typename API>
 void print_hl_or_a(bool use_hl, uint8_t prefix) {
   if (use_hl) {
-    print_prefix_pair<API>(PAIR_HL, prefix);
+    print_pair<API>(PAIR_HL, prefix);
   } else {
     API::print_char('A');
   }
@@ -398,7 +400,7 @@ uint16_t decode_ld_ind(uint16_t addr, uint8_t code, uint8_t prefix) {
   if (use_pair) {
     API::print_string(PAIR_STR[(code & 020) >> 4]);
   } else {
-    print_imm_word<API>(addr);
+    print_imm_word<API>(addr + 1);
   }
   API::print_char(')');
   // Print A/HL/IX/IY second for stores
@@ -423,12 +425,12 @@ uint16_t decode_ld_r_n(uint16_t addr, uint8_t code, uint8_t prefix) {
   if (has_prefix && reg == REG_M) {
     print_index_ind<API>(addr + 1, prefix);
     API::print_char(',');
-    print_imm_byte<API>(addr + 1);
+    print_imm_byte<API>(addr + 2);
     return addr + 3;
   } else {
-    print_prefix_reg<API>(reg, prefix);
+    print_reg<API>(reg, prefix);
     API::print_char(',');
-    print_imm_byte<API>(addr);
+    print_imm_byte<API>(addr + 1);
     return addr + 2;
   }
 }
@@ -441,7 +443,7 @@ uint16_t decode_inc_dec(uint16_t addr, uint8_t code, uint8_t prefix) {
   API::print_string(is_inc ? "INC " : "DEC ");
   if (is_pair) {
     const uint8_t pair = (code & 060) >> 4;
-    print_prefix_pair<API>(pair, prefix);
+    print_pair<API>(pair, prefix);
     return addr + 1;
   } else {
     const bool has_prefix = prefix != 0;
@@ -451,7 +453,7 @@ uint16_t decode_inc_dec(uint16_t addr, uint8_t code, uint8_t prefix) {
       print_index_ind<API>(addr + 1, prefix);
       return addr + 2;
     } else {
-      print_prefix_reg<API>(reg, prefix);
+      print_reg<API>(reg, prefix);
       return addr + 1;
     }
   }
@@ -503,14 +505,14 @@ uint16_t dasm_base_hi(uint16_t addr, uint8_t code) {
     API::print_string("JP ");
     API::print_string(COND_STR[(code & 070) >> 3]);
     API::print_char(',');
-    print_imm_word<API>(addr);
+    print_imm_word<API>(addr + 1);
     return addr + 3;
   case 3:
     switch (code & 070) {
     case 000:
       // JP (nn)
       API::print_string("JP ");
-      print_imm_word<API>(addr);
+      print_imm_word<API>(addr + 1);
       return addr + 3;
     case 010:
       // $CB prefix currently handled elsewhere
@@ -518,13 +520,13 @@ uint16_t dasm_base_hi(uint16_t addr, uint8_t code) {
     case 020:
       // OUT (n),A
       API::print_string("OUT (");
-      print_imm_byte<API>(addr);
+      print_imm_byte<API>(addr + 1);
       API::print_string("),A");
       return addr + 2;
     case 030:
       // IN A,(n)
       API::print_string("IN A,(");
-      print_imm_byte<API>(addr);
+      print_imm_byte<API>(addr + 1);
       API::print_char(')');
       return addr + 2;
     case 040:
@@ -546,7 +548,7 @@ uint16_t dasm_base_hi(uint16_t addr, uint8_t code) {
     API::print_string("CALL ");
     API::print_string(COND_STR[(code & 070) >> 3]);
     API::print_char(',');
-    print_imm_word<API>(addr);
+    print_imm_word<API>(addr + 1);
     return addr + 3;
   case 5:
     if ((code & 010) == 0) {
@@ -556,14 +558,14 @@ uint16_t dasm_base_hi(uint16_t addr, uint8_t code) {
     } else {
       // NOTE $DD, $ED, $FD should have already been handled
       API::print_string("CALL ");
-      print_imm_word<API>(addr);
+      print_imm_word<API>(addr + 1);
       return addr + 3;
     }
   case 6:
     // [ALU op] A, n
     API::print_string(ALU_STR[(code & 070) >> 3]);
     API::print_string(" A,");
-    print_imm_byte<API>(addr);
+    print_imm_byte<API>(addr + 1);
     return addr + 2;
   case 7:
     // RST zp
@@ -596,14 +598,14 @@ uint16_t decode_ld_r_r(uint16_t addr, uint8_t code, uint8_t prefix) {
   if (has_dest_index) {
     print_index_ind<API>(addr + 1, prefix);
   } else {
-    print_prefix_reg<API>(dest, has_index ? 0 : prefix);
+    print_reg<API>(dest, has_index ? 0 : prefix);
   }
   API::print_char(',');
   // Print source register
   if (has_src_index) {
     print_index_ind<API>(addr + 1, prefix);
   } else {
-    print_prefix_reg<API>(src, has_index ? 0 : prefix);
+    print_reg<API>(src, has_index ? 0 : prefix);
   }
   // Skip displacement byte if (IX/IY+disp) is used
   return has_index ? addr + 2 : addr + 1;
@@ -623,7 +625,7 @@ uint16_t decode_alu_a_r(uint16_t addr, uint8_t code, uint8_t prefix) {
     print_index_ind<API>(addr + 1, prefix);
     return addr + 2;
   } else {
-    print_prefix_reg<API>(reg, prefix);
+    print_reg<API>(reg, prefix);
     return addr + 1;
   }
 }
