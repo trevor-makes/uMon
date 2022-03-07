@@ -38,7 +38,6 @@ enum Pair {
 };
 
 constexpr const char* PAIR_STR[] = { "BC", "DE", "HL", "SP" };
-constexpr const char* PAIR_ALT_STR[] = { "BC", "DE", "HL", "AF" };
 
 // Branch condition 3-bit encodings
 // xx- = [Z, C, P/V, S], --x = [clear, set]
@@ -485,19 +484,29 @@ template <typename API>
 uint16_t dasm_base_hi(uint16_t addr, uint8_t code, uint8_t prefix) {
   switch (code & 07) {
   case 0:
-    // RET cc
     API::print_string("RET ");
     API::print_string(COND_STR[(code & 070) >> 3]);
     return addr + 1;
   case 1:
-    if ((code & 010) == 0) {
-      API::print_string("POP ");
-      API::print_string(PAIR_ALT_STR[(code & 060) >> 4]);
+    switch (code & 070) {
+    case 010:
+      API::print_string("RET");
       return addr + 1;
-    } else {
-      // TODO JP/LD will need to handle DD/FD prefix
-      static constexpr const char* OPS[] = { "RET", "EXX", "JP (HL)", "LD SP,HL" };
-      API::print_string(OPS[(code & 060) >> 4]);
+    case 030:
+      API::print_string("EXX");
+      return addr + 1;
+    case 050:
+      API::print_string("JP (");
+      print_pair<API>(PAIR_HL, prefix);
+      API::print_char(')');
+      return addr + 1;
+    case 070:
+      API::print_string("LD SP,");
+      print_pair<API>(PAIR_HL, prefix);
+      return addr + 1;
+    default:
+      API::print_string("POP ");
+      print_pair<API>((code & 060) >> 4, prefix, true);
       return addr + 1;
     }
   case 2:
@@ -530,9 +539,11 @@ uint16_t dasm_base_hi(uint16_t addr, uint8_t code, uint8_t prefix) {
       API::print_char(')');
       return addr + 2;
     case 040:
-      API::print_string("EX (SP),HL");
+      API::print_string("EX (SP),");
+      print_pair<API>(PAIR_HL, prefix);
       return addr + 1;
     case 050:
+      // NOTE EX DE,HL unaffected by prefix
       API::print_string("EX DE,HL");
       return addr + 1;
     case 060:
@@ -553,7 +564,7 @@ uint16_t dasm_base_hi(uint16_t addr, uint8_t code, uint8_t prefix) {
   case 5:
     if ((code & 010) == 0) {
       API::print_string("PUSH ");
-      API::print_string(PAIR_ALT_STR[(code & 060) >> 4]);
+      print_pair<API>((code & 060) >> 4, prefix, true);
       return addr + 1;
     } else {
       // NOTE $DD, $ED, $FD should have already been handled
