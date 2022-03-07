@@ -414,6 +414,25 @@ uint16_t decode_ld_ind(uint16_t addr, uint8_t code, uint8_t prefix) {
   }
 }
 
+// Disassemble LD r, n: ([ix/iy]) [00 r 110] ([d]) [n]
+template <typename API>
+uint16_t decode_ld_r_n(uint16_t addr, uint8_t code, uint8_t prefix) {
+  const uint8_t reg = (code & 070) >> 3;
+  const bool has_prefix = prefix != 0;
+  API::print_string("LD ");
+  if (has_prefix && reg == REG_M) {
+    print_index_ind<API>(addr + 1, prefix);
+    API::print_char(',');
+    print_imm_byte<API>(addr + 1);
+    return addr + 3;
+  } else {
+    print_prefix_reg<API>(reg, prefix);
+    API::print_char(',');
+    print_imm_byte<API>(addr);
+    return addr + 2;
+  }
+}
+
 // Disassemble INC/DEC: [00 --- 011/100/101]
 template <typename API>
 uint16_t decode_inc_dec(uint16_t addr, uint8_t code, uint8_t prefix) {
@@ -449,12 +468,7 @@ uint16_t dasm_base_lo(uint16_t addr, uint8_t code, uint8_t prefix) {
   case 2:
     return decode_ld_ind<API>(addr, code, prefix);
   case 6:
-    // LD r, n
-    API::print_string("LD ");
-    API::print_string(REG_STR[(code & 070) >> 3]);
-    API::print_char(',');
-    print_imm_byte<API>(addr);
-    return addr + 2;
+    return decode_ld_r_n<API>(addr, code, prefix);
   case 7:
     // Misc AF ops with no operands
     API::print_string(MISC_STR[(code & 070) >> 3]);
@@ -601,18 +615,17 @@ uint16_t decode_alu_a_r(uint16_t addr, uint8_t code, uint8_t prefix) {
   const uint8_t op = (code & 070) >> 3;
   const uint8_t reg = code & 07;
   const bool has_prefix = prefix != 0;
-  const bool has_index = has_prefix && reg == REG_M;
   // Print [op] A,
   API::print_string(ALU_STR[op]);
   API::print_string(" A,");
   // Print operand reg
-  if (has_index) {
+  if (has_prefix && reg == REG_M) {
     print_index_ind<API>(addr + 1, prefix);
+    return addr + 2;
   } else {
     print_prefix_reg<API>(reg, prefix);
+    return addr + 1;
   }
-  // Skip displacement byte if (IX/IY+d) is used
-  return has_index ? addr + 2 : addr + 1;
 }
 
 template <typename API>
