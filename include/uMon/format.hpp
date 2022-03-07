@@ -4,10 +4,32 @@
 #pragma once
 
 #include <stdint.h>
+#include <stdlib.h>
 
 namespace uMon {
 
-uint32_t parse_u32(const char* str);
+// Parse unsigned value from string, returning true on success
+// Prints the string and returns false if invalid characters found
+// Supports prefixes $ for hex, & for octal, and % for binary
+template <typename API, typename T>
+bool parse_unsigned(const char* str, T& result) {
+  char* end;
+  // Handle custom prefixes for non-decimal bases
+  switch (str[0]) {
+  case '$': result = strtoul(++str, &end, 16); break; // hex
+  case '&': result = strtoul(++str, &end, 8); break; // octal
+  case '%': result = strtoul(++str, &end, 2); break; // binary
+  default:  result = strtoul(str, &end, 10); break; // decimal
+  }
+  // Print error if string not parsed as number
+  if (end == str || *end != '\0') {
+    API::print_string(str);
+    API::print_string("?\n");
+    return false;
+  } else {
+    return true;
+  }
+}
 
 // Print single hex digit (or garbage if n > 15)
 template <typename F>

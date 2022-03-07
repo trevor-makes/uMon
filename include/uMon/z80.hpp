@@ -694,8 +694,10 @@ uint16_t impl_dasm(uint16_t addr, uint16_t end) {
 
 template <typename API>
 void cmd_dasm(uCLI::Args args) {
-  uint16_t start = args.has_next() ? parse_u32(args.next()) : 0;
-  uint16_t size = args.has_next() ? parse_u32(args.next()) : 1;
+  // Use default values if none given, but do print error if given garbage
+  uint16_t start = 0, size = 1;
+  if (args.has_next() && !parse_unsigned<API>(args.next(), start)) { return; }
+  if (args.has_next() && !parse_unsigned<API>(args.next(), size)) { return; }
   uint16_t next = impl_dasm<API>(start, start + size - 1);
   set_prompt<API>(args.command(), next);
 }

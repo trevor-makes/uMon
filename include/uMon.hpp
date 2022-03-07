@@ -68,8 +68,10 @@ uint16_t impl_strcpy(uint16_t start, const char* str) {
 
 template <typename API, uint8_t COL_SIZE = 16>
 void cmd_hex(uCLI::Args args) {
-  uint16_t start = args.has_next() ? parse_u32(args.next()) : 0;
-  uint16_t size = args.has_next() ? parse_u32(args.next()) : COL_SIZE;
+  // Use default values if none given, but do print error if given garbage
+  uint16_t start = 0, size = COL_SIZE;
+  if (args.has_next() && !parse_unsigned<API>(args.next(), start)) { return; }
+  if (args.has_next() && !parse_unsigned<API>(args.next(), size)) { return; }
   uint16_t next = impl_hex<API, COL_SIZE>(start, start + size - 1);
   set_prompt<API>(args.command(), next);
 }
@@ -84,20 +86,24 @@ void cmd_set(uCLI::Args args) {
     API::print_string("loc (len) int\n");
     return;
   }
-  uint16_t start = uMon::parse_u32(argv[0]);
+  uint16_t start = 0;
+  if (!parse_unsigned<API>(argv[0], start)) { return; }
   if (are_str[1]) {
     // Set mem[start:] to string
     uint16_t next = impl_strcpy<API>(start, argv[1]);
     set_prompt<API>(args.command(), next);
   } else if (argc == 2) {
     // Set mem[start] to pattern
-    uint8_t pattern = uMon::parse_u32(argv[1]);
+    uint8_t pattern = 0;
+    if (!parse_unsigned<API>(argv[1], pattern)) { return; }
     impl_memset<API>(start, start, pattern);
     set_prompt<API>(args.command(), start + 1);
   } else if (argc >= 3) {
     // Set mem[start:start+size] to pattern
-    uint16_t size = uMon::parse_u32(argv[1]);
-    uint8_t pattern = uMon::parse_u32(argv[2]);
+    uint16_t size;
+    uint8_t pattern;
+    if (!parse_unsigned<API>(argv[1], size)) { return; }
+    if (!parse_unsigned<API>(argv[2], pattern)) { return; }
     impl_memset<API>(start, start + size - 1, pattern);
   }
 }
