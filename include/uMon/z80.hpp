@@ -149,16 +149,17 @@ void print_index_ind(uint16_t addr, uint8_t prefix) {
   }
   API::print_char(')');
 }
-
+// Print reg, optionally with IX/IY prefix, or (HL)
+// (IX/IY+disp) should be handled separately
 template <typename API>
 void print_prefix_reg(uint8_t reg, uint8_t prefix) {
-  // Print IXL/IXH/IYL/IYH if prefixed
   if (prefix != 0 && (reg == REG_L || reg == REG_H)) {
     print_index_reg<API>(prefix);
   }
   API::print_string(REG_STR[reg]);
 }
 
+// Print pair, replacing HL with IX/IY if prefixed, and SP with AF if flagged
 template <typename API>
 void print_prefix_pair(uint8_t pair, uint8_t prefix, bool use_af = false) {
   const bool has_prefix = prefix != 0;
@@ -415,13 +416,26 @@ uint16_t decode_ld_ind(uint16_t addr, uint8_t code, uint8_t prefix) {
 
 // Disassemble INC/DEC: [00 --- 011/100/101]
 template <typename API>
-uint16_t decode_inc_dec(uint16_t addr, uint8_t code) {
+uint16_t decode_inc_dec(uint16_t addr, uint8_t code, uint8_t prefix) {
   const bool is_pair = (code & 04) == 0;
   const bool is_inc = is_pair ? (code & 010) == 0 : (code & 01) == 0;
-  uint8_t reg = is_pair ? (code & 060) >> 4 : (code & 070) >> 3;
   API::print_string(is_inc ? "INC " : "DEC ");
-  API::print_string(is_pair ? PAIR_STR[reg] : REG_STR[reg]);
-  return addr + 1;
+  if (is_pair) {
+    const uint8_t pair = (code & 060) >> 4;
+    print_prefix_pair<API>(pair, prefix);
+    return addr + 1;
+  } else {
+    const bool has_prefix = prefix != 0;
+    const uint8_t reg = (code & 070) >> 3;
+    if (has_prefix && reg == REG_M) {
+      // Replace (HL) with (IX/IY+disp)
+      print_index_ind<API>(addr + 1, prefix);
+      return addr + 2;
+    } else {
+      print_prefix_reg<API>(reg, prefix);
+      return addr + 1;
+    }
+  }
 }
 
 // Disassemble opcodes with leading octal digit 0
@@ -446,7 +460,7 @@ uint16_t dasm_base_lo(uint16_t addr, uint8_t code, uint8_t prefix) {
     API::print_string(MISC_STR[(code & 070) >> 3]);
     return addr + 1;
   default:
-    return decode_inc_dec<API>(addr, code);
+    return decode_inc_dec<API>(addr, code, prefix);
   }
 }
 
