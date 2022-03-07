@@ -418,7 +418,7 @@ uint16_t decode_ld_ind(uint16_t addr, uint8_t code, uint8_t prefix) {
 
 // Disassemble LD r, n: ([ix/iy]) [00 r 110] ([d]) [n]
 template <typename API>
-uint16_t decode_ld_r_n(uint16_t addr, uint8_t code, uint8_t prefix) {
+uint16_t decode_ld_reg_imm(uint16_t addr, uint8_t code, uint8_t prefix) {
   const uint8_t reg = (code & 070) >> 3;
   const bool has_prefix = prefix != 0;
   API::print_string("LD ");
@@ -470,19 +470,19 @@ uint16_t dasm_base_lo(uint16_t addr, uint8_t code, uint8_t prefix) {
   case 2:
     return decode_ld_ind<API>(addr, code, prefix);
   case 6:
-    return decode_ld_r_n<API>(addr, code, prefix);
+    return decode_ld_reg_imm<API>(addr, code, prefix);
   case 7:
     // Misc AF ops with no operands
     API::print_string(MISC_STR[(code & 070) >> 3]);
     return addr + 1;
-  default:
+  default: // 3, 4, 5
     return decode_inc_dec<API>(addr, code, prefix);
   }
 }
 
 // Disassemble opcodes with leading octal digit 3
 template <typename API>
-uint16_t dasm_base_hi(uint16_t addr, uint8_t code) {
+uint16_t dasm_base_hi(uint16_t addr, uint8_t code, uint8_t prefix) {
   switch (code & 07) {
   case 0:
     // RET cc
@@ -578,7 +578,7 @@ uint16_t dasm_base_hi(uint16_t addr, uint8_t code) {
 
 // Decode LD r, r: [01 --- ---]
 template <typename API>
-uint16_t decode_ld_r_r(uint16_t addr, uint8_t code, uint8_t prefix) {
+uint16_t decode_ld_reg_reg(uint16_t addr, uint8_t code, uint8_t prefix) {
   // Replace LD (HL),(HL) with HALT
   if (code == 0x76) {
     API::print_string("HALT");
@@ -613,7 +613,7 @@ uint16_t decode_ld_r_r(uint16_t addr, uint8_t code, uint8_t prefix) {
 
 // Decode [ALU op] A, r: [10 --- ---]
 template <typename API>
-uint16_t decode_alu_a_r(uint16_t addr, uint8_t code, uint8_t prefix) {
+uint16_t decode_alu_a_reg(uint16_t addr, uint8_t code, uint8_t prefix) {
   const uint8_t op = (code & 070) >> 3;
   const uint8_t reg = code & 07;
   const bool has_prefix = prefix != 0;
@@ -656,11 +656,11 @@ uint16_t dasm_base(uint16_t addr, uint8_t prefix = 0) {
   case 0000:
     return dasm_base_lo<API>(addr, code, prefix);
   case 0100:
-    return decode_ld_r_r<API>(addr, code, prefix);
+    return decode_ld_reg_reg<API>(addr, code, prefix);
   case 0200:
-    return decode_alu_a_r<API>(addr, code, prefix);
+    return decode_alu_a_reg<API>(addr, code, prefix);
   case 0300:
-    return dasm_base_hi<API>(addr, code);
+    return dasm_base_hi<API>(addr, code, prefix);
   }
   return addr + 1;
 }
