@@ -376,135 +376,6 @@ uint16_t decode_inc_dec(uint16_t addr, uint8_t code, uint8_t prefix) {
   }
 }
 
-// Disassemble opcodes with leading octal digit 0
-template <typename API>
-uint16_t dasm_base_lo(uint16_t addr, uint8_t code, uint8_t prefix) {
-  switch (code & 07) {
-  case 0:
-    return decode_jr<API>(addr, code);
-  case 1:
-    return decode_ld_add_pair<API>(addr, code, prefix);
-  case 2:
-    return decode_ld_ind<API>(addr, code, prefix);
-  case 6:
-    return decode_ld_reg_imm<API>(addr, code, prefix);
-  case 7:
-    // Misc AF ops with no operands
-    API::print_string(MISC_STR[(code & 070) >> 3]);
-    return addr + 1;
-  default: // 3, 4, 5
-    return decode_inc_dec<API>(addr, code, prefix);
-  }
-}
-
-// Disassemble opcodes with leading octal digit 3
-template <typename API>
-uint16_t dasm_base_hi(uint16_t addr, uint8_t code, uint8_t prefix) {
-  switch (code & 07) {
-  case 0:
-    API::print_string("RET ");
-    API::print_string(COND_STR[(code & 070) >> 3]);
-    return addr + 1;
-  case 1:
-    switch (code & 070) {
-    case 010:
-      API::print_string("RET");
-      return addr + 1;
-    case 030:
-      API::print_string("EXX");
-      return addr + 1;
-    case 050:
-      API::print_string("JP (");
-      print_pair<API>(PAIR_HL, prefix);
-      API::print_char(')');
-      return addr + 1;
-    case 070:
-      API::print_string("LD SP,");
-      print_pair<API>(PAIR_HL, prefix);
-      return addr + 1;
-    default:
-      API::print_string("POP ");
-      print_pair<API>((code & 060) >> 4, prefix, true);
-      return addr + 1;
-    }
-  case 2:
-    // JP cc, nn
-    API::print_string("JP ");
-    API::print_string(COND_STR[(code & 070) >> 3]);
-    API::print_char(',');
-    print_imm_word<API>(addr + 1);
-    return addr + 3;
-  case 3:
-    switch (code & 070) {
-    case 000:
-      // JP (nn)
-      API::print_string("JP ");
-      print_imm_word<API>(addr + 1);
-      return addr + 3;
-    case 010:
-      // $CB prefix currently handled elsewhere
-      break;
-    case 020:
-      // OUT (n),A
-      API::print_string("OUT (");
-      print_imm_byte<API>(addr + 1);
-      API::print_string("),A");
-      return addr + 2;
-    case 030:
-      // IN A,(n)
-      API::print_string("IN A,(");
-      print_imm_byte<API>(addr + 1);
-      API::print_char(')');
-      return addr + 2;
-    case 040:
-      API::print_string("EX (SP),");
-      print_pair<API>(PAIR_HL, prefix);
-      return addr + 1;
-    case 050:
-      // NOTE EX DE,HL unaffected by prefix
-      API::print_string("EX DE,HL");
-      return addr + 1;
-    case 060:
-      API::print_string("DI");
-      return addr + 1;
-    case 070:
-      API::print_string("EI");
-      return addr + 1;
-    }
-    break;
-  case 4:
-    // CALL cc, nn
-    API::print_string("CALL ");
-    API::print_string(COND_STR[(code & 070) >> 3]);
-    API::print_char(',');
-    print_imm_word<API>(addr + 1);
-    return addr + 3;
-  case 5:
-    if ((code & 010) == 0) {
-      API::print_string("PUSH ");
-      print_pair<API>((code & 060) >> 4, prefix, true);
-      return addr + 1;
-    } else {
-      // NOTE $DD, $ED, $FD should have already been handled
-      API::print_string("CALL ");
-      print_imm_word<API>(addr + 1);
-      return addr + 3;
-    }
-  case 6:
-    // [ALU op] A, n
-    API::print_string(ALU_STR[(code & 070) >> 3]);
-    API::print_string(" A,");
-    print_imm_byte<API>(addr + 1);
-    return addr + 2;
-  case 7:
-    // RST zp
-    API::print_string("RST $");
-    fmt_hex8(API::print_char, code & 070);
-    return addr + 1;
-  }
-  return addr + 1;
-}
-
 // Decode LD r, r: [01 --- ---]
 template <typename API>
 uint16_t decode_ld_reg_reg(uint16_t addr, uint8_t code, uint8_t prefix) {
@@ -560,36 +431,155 @@ uint16_t decode_alu_a_reg(uint16_t addr, uint8_t code, uint8_t prefix) {
 }
 
 template <typename API>
+uint16_t dasm_base(uint16_t addr, uint8_t prefix = 0);
+
+// Disassemble opcodes with leading octal digit 3
+template <typename API>
+uint16_t dasm_base_hi(uint16_t addr, uint8_t code, uint8_t prefix) {
+  switch (code & 07) {
+  case 0:
+    API::print_string("RET ");
+    API::print_string(COND_STR[(code & 070) >> 3]);
+    return addr + 1;
+  case 1:
+    switch (code & 070) {
+    case 010:
+      API::print_string("RET");
+      return addr + 1;
+    case 030:
+      API::print_string("EXX");
+      return addr + 1;
+    case 050:
+      API::print_string("JP (");
+      print_pair<API>(PAIR_HL, prefix);
+      API::print_char(')');
+      return addr + 1;
+    case 070:
+      API::print_string("LD SP,");
+      print_pair<API>(PAIR_HL, prefix);
+      return addr + 1;
+    default:
+      API::print_string("POP ");
+      print_pair<API>((code & 060) >> 4, prefix, true);
+      return addr + 1;
+    }
+  case 2:
+    // JP cc, nn
+    API::print_string("JP ");
+    API::print_string(COND_STR[(code & 070) >> 3]);
+    API::print_char(',');
+    print_imm_word<API>(addr + 1);
+    return addr + 3;
+  case 3:
+    switch (code & 070) {
+    case 000:
+      // JP (nn)
+      API::print_string("JP ");
+      print_imm_word<API>(addr + 1);
+      return addr + 3;
+    case 010:
+      return decode_cb<API>(addr + 1, prefix);
+    case 020:
+      // OUT (n),A
+      API::print_string("OUT (");
+      print_imm_byte<API>(addr + 1);
+      API::print_string("),A");
+      return addr + 2;
+    case 030:
+      // IN A,(n)
+      API::print_string("IN A,(");
+      print_imm_byte<API>(addr + 1);
+      API::print_char(')');
+      return addr + 2;
+    case 040:
+      API::print_string("EX (SP),");
+      print_pair<API>(PAIR_HL, prefix);
+      return addr + 1;
+    case 050:
+      // NOTE EX DE,HL unaffected by prefix
+      API::print_string("EX DE,HL");
+      return addr + 1;
+    case 060:
+      API::print_string("DI");
+      return addr + 1;
+    case 070:
+      API::print_string("EI");
+      return addr + 1;
+    }
+    break;
+  case 4:
+    // CALL cc, nn
+    API::print_string("CALL ");
+    API::print_string(COND_STR[(code & 070) >> 3]);
+    API::print_char(',');
+    print_imm_word<API>(addr + 1);
+    return addr + 3;
+  case 5:
+    switch (code & 070) {
+    case 010:
+      API::print_string("CALL ");
+      print_imm_word<API>(addr + 1);
+      return addr + 3;
+    case 030: case 050: case 070: // $DD, $ED, $FD
+      if (prefix != 0) {
+        // Discard old prefix and start over
+        print_error<API>(prefix, code);
+        return addr;
+      } else {
+        if (code == 0xED) {
+          return dasm_ed<API>(addr + 1);
+        } else {
+          return dasm_base<API>(addr + 1, code);
+        }
+      }
+    default:
+      API::print_string("PUSH ");
+      print_pair<API>((code & 060) >> 4, prefix, true);
+      return addr + 1;
+    }
+  case 6:
+    // [ALU op] A, n
+    API::print_string(ALU_STR[(code & 070) >> 3]);
+    API::print_string(" A,");
+    print_imm_byte<API>(addr + 1);
+    return addr + 2;
+  case 7:
+    // RST zp
+    API::print_string("RST $");
+    fmt_hex8(API::print_char, code & 070);
+    return addr + 1;
+  }
+  return addr + 1;
+}
+
+template <typename API>
 uint16_t dasm_base(uint16_t addr, uint8_t prefix = 0) {
   uint8_t code = API::read_byte(addr);
-  // Check for prefix codes first
-  switch (code) {
-  case 0xCB:
-    return decode_cb<API>(addr + 1, prefix);
-  case 0xDD: case 0xED: case 0xFD:
-    if (prefix != 0) {
-      // Discard old prefix and start over
-      print_error<API>(prefix, code);
-      return addr;
-    } else {
-      if (code == 0xED) {
-        return dasm_ed<API>(addr + 1);
-      } else {
-        return dasm_base<API>(addr + 1, code);
-      }
-    }
-  }
   switch (code & 0300) {
   case 0000:
-    return dasm_base_lo<API>(addr, code, prefix);
+    switch (code & 07) {
+    case 0:
+      return decode_jr<API>(addr, code);
+    case 1:
+      return decode_ld_add_pair<API>(addr, code, prefix);
+    case 2:
+      return decode_ld_ind<API>(addr, code, prefix);
+    case 6:
+      return decode_ld_reg_imm<API>(addr, code, prefix);
+    case 7:
+      // Misc AF ops with no operands
+      API::print_string(MISC_STR[(code & 070) >> 3]);
+      return addr + 1;
+    default: // 3, 4, 5
+      return decode_inc_dec<API>(addr, code, prefix);
+    }
   case 0100:
     return decode_ld_reg_reg<API>(addr, code, prefix);
   case 0200:
     return decode_alu_a_reg<API>(addr, code, prefix);
-  case 0300:
+  default:
     return dasm_base_hi<API>(addr, code, prefix);
   }
-  return addr + 1;
 }
 
 template <typename API>
