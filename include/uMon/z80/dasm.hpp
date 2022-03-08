@@ -14,6 +14,15 @@
 namespace uMon {
 namespace z80 {
 
+// Print given code as hex followed by '?'
+template <typename API>
+void print_error(uint8_t prefix, uint8_t code) {
+  API::print_char('$');
+  fmt_hex8(API::print_char, prefix);
+  fmt_hex8(API::print_char, code);
+  API::print_char('?');
+}
+
 // Print 1-byte immediate located at addr
 template <typename API>
 void print_imm_byte(uint16_t addr) {
@@ -56,6 +65,7 @@ void print_index_ind(uint16_t addr, uint8_t prefix) {
   }
   API::print_char(')');
 }
+
 // Print reg, optionally with IX/IY prefix, or (HL)
 // (IX/IY+disp) should be handled with print_index_ind instead
 template <typename API>
@@ -130,7 +140,7 @@ uint16_t decode_ld_ir(uint16_t addr, uint8_t code) {
   const bool is_rl = (code & 010) == 010; // is LD -R- or RLD
   if (is_rot) {
     if (is_load) {
-      API::print_char('?');
+      print_error<API>(0xED, code);
     } else {
       API::print_string(is_rl ? "RLD" : "RRD");
     }
@@ -189,7 +199,7 @@ uint16_t dasm_ed(uint16_t addr) {
   } else if ((code & 0344) == 0240) {
     return decode_block_ops<API>(addr, code);
   }
-  API::print_char('?');
+  print_error<API>(0xED, code);
   return addr + 1;
 }
 
@@ -559,9 +569,7 @@ uint16_t dasm_base(uint16_t addr, uint8_t prefix = 0) {
   case 0xDD: case 0xED: case 0xFD:
     if (prefix != 0) {
       // Discard old prefix and start over
-      API::print_char('$');
-      fmt_hex8(API::print_char, prefix);
-      API::print_char('?');
+      print_error<API>(prefix, code);
       return addr;
     } else {
       if (code == 0xED) {
