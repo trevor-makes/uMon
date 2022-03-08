@@ -169,7 +169,7 @@ uint16_t decode_block_ops(uint16_t addr, uint8_t code) {
 
 // Disassemble extended opcodes prefixed by $ED
 template <typename API>
-uint16_t dasm_ed(uint16_t addr) {
+uint16_t decode_ed(uint16_t addr) {
   const uint8_t code = API::read_byte(addr);
   if ((code & 0300) == 0100) {
     switch (code & 07) {
@@ -520,7 +520,7 @@ uint16_t decode_misc_hi(uint16_t addr, uint8_t code, uint8_t prefix) {
 }
 
 template <typename API>
-uint16_t dasm_base(uint16_t addr, uint8_t prefix = 0) {
+uint16_t decode_base(uint16_t addr, uint8_t prefix = 0) {
   uint8_t code = API::read_byte(addr);
   // Handle prefix codes
   if (code == 0xDD || code == 0xED || code == 0xFD) {
@@ -530,15 +530,16 @@ uint16_t dasm_base(uint16_t addr, uint8_t prefix = 0) {
       return addr;
     } else {
       if (code == 0xED) {
-        return dasm_ed<API>(addr + 1);
+        return decode_ed<API>(addr + 1);
       } else {
-        return dasm_base<API>(addr + 1, code);
+        return decode_base<API>(addr + 1, code);
       }
     }
   }
-  // Break down opcode by octal digits
+  // Decode by leading octal digit
   switch (code & 0300) {
   case 0000:
+    // Decode by trailing octal digit
     switch (code & 07) {
     case 0:
       return decode_jr<API>(addr, code);
@@ -560,6 +561,7 @@ uint16_t dasm_base(uint16_t addr, uint8_t prefix = 0) {
   case 0200:
     return decode_alu_a_reg<API>(addr, code, prefix);
   default: // 0300
+    // Decode by trailing octal digit
     switch (code & 07) {
     case 3:
       return decode_misc_hi<API>(addr, code, prefix);
@@ -588,7 +590,7 @@ uint16_t impl_dasm(uint16_t addr, uint16_t end) {
     // Print "addr:  opcode"
     fmt_hex16(API::print_char, addr);
     API::print_string(":  ");
-    uint16_t next = dasm_base<API>(addr);
+    uint16_t next = decode_base<API>(addr);
     API::print_char('\n');
     // Do while end does not overlap with opcode
     if (uint16_t(end - addr) < uint16_t(next - addr)) {
