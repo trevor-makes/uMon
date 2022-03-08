@@ -82,7 +82,7 @@ enum Rot {
   ROT_SRL = 7,
 };
 
-constexpr const char* ROT_STR[] = { "RLC", "RRC", "RL", "RR", "SLA", "SRA", "SLL", "SRL" };
+constexpr const char* ROT_STR[] = { "RLC", "RRC", "RL", "RR", "SLA", "SRA", "SL1", "SRL" };
 
 // Misc AF ops 3-bit encoding
 enum Misc {

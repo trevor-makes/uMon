@@ -433,7 +433,7 @@ uint16_t decode_alu_a_reg(uint16_t addr, uint8_t code, uint8_t prefix) {
 // Decode conditional RET/JP/CALL
 template <typename API>
 uint16_t decode_jp_cond(uint16_t addr, uint8_t code) {
-  static constexpr const char* OPS[] = { "RET", "JP", "CALL" };
+  static constexpr const char* OPS[] = { "RET ", "JP ", "CALL " };
   const uint8_t op = (code & 06) >> 1;
   const uint8_t cond = (code & 070) >> 3;
   API::print_string(OPS[op]);
