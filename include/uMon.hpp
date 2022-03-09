@@ -12,7 +12,7 @@ namespace uMon {
 
 // Dump memory as hex/ascii from row to end, inclusive
 template <typename API, uint8_t COL_SIZE = 16>
-uint16_t impl_hex(uint16_t row, uint16_t end) {
+void impl_hex(uint16_t row, uint16_t end) {
   uint8_t row_data[COL_SIZE];
   for (;;) {
     API::read_bytes(row, row_data);
@@ -38,11 +38,8 @@ uint16_t impl_hex(uint16_t row, uint16_t end) {
     API::print_string("\"\n");
 
     // Do while end does not overlap with row
-    uint16_t next = row + COL_SIZE;
-    if (uint16_t(end - row) < COL_SIZE) {
-      return next;
-    }
-    row = next;
+    if (uint16_t(end - row) < COL_SIZE) { return; }
+    row += COL_SIZE;
   }
 }
 
@@ -68,44 +65,37 @@ uint16_t impl_strcpy(uint16_t start, const char* str) {
 
 template <typename API, uint8_t COL_SIZE = 16>
 void cmd_hex(uCLI::Args args) {
-  // Use default values if none given, but do print error if given garbage
-  uint16_t start = 0, size = COL_SIZE;
-  if (args.has_next() && !parse_unsigned<API>(args.next(), start)) { return; }
+  // Default size to one row if not provided
+  uint16_t start, size = COL_SIZE;
+  if (!parse_unsigned<API>(args.next(), start)) { return; }
   if (args.has_next() && !parse_unsigned<API>(args.next(), size)) { return; }
-  uint16_t next = impl_hex<API, COL_SIZE>(start, start + size - 1);
-  set_prompt<API>(args.command(), next);
+  impl_hex<API, COL_SIZE>(start, start + size - 1);
 }
 
 template <typename API>
 void cmd_set(uCLI::Args args) {
-  const char* argv[3];
-  bool are_str[3];
-  uint8_t argc = args.get(argv, are_str);
-  if (argc < 2) {
-    API::print_string("loc str\n");
-    API::print_string("loc (len) int\n");
-    return;
-  }
-  uint16_t start = 0;
-  if (!parse_unsigned<API>(argv[0], start)) { return; }
-  if (are_str[1]) {
-    // Set mem[start:] to string
-    uint16_t next = impl_strcpy<API>(start, argv[1]);
-    set_prompt<API>(args.command(), next);
-  } else if (argc == 2) {
-    // Set mem[start] to pattern
-    uint8_t pattern = 0;
-    if (!parse_unsigned<API>(argv[1], pattern)) { return; }
-    impl_memset<API>(start, start, pattern);
-    set_prompt<API>(args.command(), start + 1);
-  } else if (argc >= 3) {
-    // Set mem[start:start+size] to pattern
-    uint16_t size;
-    uint8_t pattern;
-    if (!parse_unsigned<API>(argv[1], size)) { return; }
-    if (!parse_unsigned<API>(argv[2], pattern)) { return; }
-    impl_memset<API>(start, start + size - 1, pattern);
-  }
+  uint16_t addr;
+  uint8_t data;
+  if (!parse_unsigned<API>(args.next(), addr)) { return; }
+  do {
+    if (args.is_string()) {
+      addr = impl_strcpy<API>(addr, args.next());
+    } else {
+      if (!parse_unsigned<API>(args.next(), data)) { return; }
+      API::write_byte(addr++, data);
+    }
+  } while (args.has_next());
+  set_prompt<API>(args.command(), addr);
+}
+
+template <typename API>
+void cmd_fill(uCLI::Args args) {
+  uint16_t start, size;
+  uint8_t pattern;
+  if (!parse_unsigned<API>(args.next(), start)) { return; }
+  if (!parse_unsigned<API>(args.next(), size)) { return; }
+  if (!parse_unsigned<API>(args.next(), pattern)) { return; }
+  impl_memset<API>(start, start + size - 1, pattern);
 }
 
 } // namespace uMon

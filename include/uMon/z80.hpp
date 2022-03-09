@@ -11,9 +11,9 @@ namespace z80 {
 
 template <typename API>
 void cmd_dasm(uCLI::Args args) {
-  // Use default values if none given, but do print error if given garbage
-  uint16_t start = 0, size = 1;
-  if (args.has_next() && !parse_unsigned<API>(args.next(), start)) { return; }
+  // Default size to one instruction if not provided
+  uint16_t start, size = 1;
+  if (!parse_unsigned<API>(args.next(), start)) { return; }
   if (args.has_next() && !parse_unsigned<API>(args.next(), size)) { return; }
   uint16_t next = impl_dasm<API>(start, start + size - 1);
   set_prompt<API>(args.command(), next);
