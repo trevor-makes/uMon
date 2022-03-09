@@ -11,7 +11,7 @@ namespace uMon {
 // Parse unsigned value from string, returning true on success
 // Prints the string and returns false if invalid characters found
 // Supports prefixes $ for hex, & for octal, and % for binary
-template <typename API, typename T>
+template <typename T>
 bool parse_unsigned(const char* str, T& result) {
   char* end;
   // Handle custom prefixes for non-decimal bases
@@ -21,14 +21,8 @@ bool parse_unsigned(const char* str, T& result) {
   case '%': result = strtoul(++str, &end, 2); break; // binary
   default:  result = strtoul(str, &end, 10); break; // decimal
   }
-  // Print error if string not parsed as number
-  if (end == str || *end != '\0') {
-    API::print_string(str);
-    API::print_string("?\n");
-    return false;
-  } else {
-    return true;
-  }
+  // Return true if all characters were parsed
+  return end != str && *end == '\0';
 }
 
 // Print single hex digit (or garbage if n > 15)
@@ -73,5 +67,35 @@ void set_prompt(const char* cmd, uint16_t addr) {
   fmt_hex16(API::prompt_char, addr);
   API::prompt_char(' ');
 }
+
+#define uMON_EXPECT_UINT(TYPE, NAME, ARGS) \
+  TYPE NAME; \
+  do { \
+    const char* str = ARGS.next(); \
+    if (!parse_unsigned(str, NAME)) { \
+      API::print_string(#NAME); \
+      if (*str != '\0') { \
+        API::print_string(": "); \
+        API::print_string(str); \
+      } \
+      API::print_string("?\n"); \
+      return; \
+    } \
+  } while(false);
+
+#define uMON_OPTION_UINT(TYPE, NAME, ARGS, DEFAULT) \
+  TYPE NAME = DEFAULT; \
+  do { \
+    if (ARGS.has_next()) { \
+      const char* str = ARGS.next(); \
+      if (!parse_unsigned(str, NAME)) { \
+        API::print_string(#NAME); \
+        API::print_string(": "); \
+        API::print_string(str); \
+        API::print_string("?\n"); \
+        return; \
+      } \
+    } \
+  } while(false);
 
 } // namespace uMon

@@ -66,35 +66,30 @@ uint16_t impl_strcpy(uint16_t start, const char* str) {
 template <typename API, uint8_t COL_SIZE = 16>
 void cmd_hex(uCLI::Args args) {
   // Default size to one row if not provided
-  uint16_t start, size = COL_SIZE;
-  if (!parse_unsigned<API>(args.next(), start)) { return; }
-  if (args.has_next() && !parse_unsigned<API>(args.next(), size)) { return; }
+  uMON_EXPECT_UINT(uint16_t, start, args);
+  uMON_OPTION_UINT(uint16_t, size, args, COL_SIZE);
   impl_hex<API, COL_SIZE>(start, start + size - 1);
 }
 
 template <typename API>
 void cmd_set(uCLI::Args args) {
-  uint16_t addr;
-  uint8_t data;
-  if (!parse_unsigned<API>(args.next(), addr)) { return; }
+  uMON_EXPECT_UINT(uint16_t, start, args);
   do {
     if (args.is_string()) {
-      addr = impl_strcpy<API>(addr, args.next());
+      start = impl_strcpy<API>(start, args.next());
     } else {
-      if (!parse_unsigned<API>(args.next(), data)) { return; }
-      API::write_byte(addr++, data);
+      uMON_EXPECT_UINT(uint8_t, data, args);
+      API::write_byte(start++, data);
     }
   } while (args.has_next());
-  set_prompt<API>(args.command(), addr);
+  set_prompt<API>(args.command(), start);
 }
 
 template <typename API>
 void cmd_fill(uCLI::Args args) {
-  uint16_t start, size;
-  uint8_t pattern;
-  if (!parse_unsigned<API>(args.next(), start)) { return; }
-  if (!parse_unsigned<API>(args.next(), size)) { return; }
-  if (!parse_unsigned<API>(args.next(), pattern)) { return; }
+  uMON_EXPECT_UINT(uint16_t, start, args);
+  uMON_EXPECT_UINT(uint16_t, size, args);
+  uMON_EXPECT_UINT(uint8_t, pattern, args);
   impl_memset<API>(start, start + size - 1, pattern);
 }
 
