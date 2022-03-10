@@ -68,34 +68,31 @@ void set_prompt(const char* cmd, uint16_t addr) {
   API::prompt_char(' ');
 }
 
+#define uMON_FMT_ERROR(IS_ERR, NAME, INPUT) \
+  if (IS_ERR) { \
+    API::print_string(NAME); \
+    if (*INPUT != '\0') { \
+      API::print_string(": "); \
+      API::print_string(INPUT); \
+    } \
+    API::print_string("?\n"); \
+    return; \
+  } \
+
 #define uMON_EXPECT_UINT(TYPE, NAME, ARGS) \
   TYPE NAME; \
-  do { \
+  { \
     const char* str = ARGS.next(); \
-    if (!parse_unsigned(str, NAME)) { \
-      API::print_string(#NAME); \
-      if (*str != '\0') { \
-        API::print_string(": "); \
-        API::print_string(str); \
-      } \
-      API::print_string("?\n"); \
-      return; \
-    } \
-  } while(false);
+    const bool is_err = !parse_unsigned(str, NAME); \
+    uMON_FMT_ERROR(is_err, #NAME, str) \
+  }
 
 #define uMON_OPTION_UINT(TYPE, NAME, ARGS, DEFAULT) \
   TYPE NAME = DEFAULT; \
-  do { \
-    if (ARGS.has_next()) { \
-      const char* str = ARGS.next(); \
-      if (!parse_unsigned(str, NAME)) { \
-        API::print_string(#NAME); \
-        API::print_string(": "); \
-        API::print_string(str); \
-        API::print_string("?\n"); \
-        return; \
-      } \
-    } \
-  } while(false);
+  if (ARGS.has_next()) { \
+    const char* str = ARGS.next(); \
+    const bool is_err = !parse_unsigned(str, NAME); \
+    uMON_FMT_ERROR(is_err, #NAME, str); \
+  }
 
 } // namespace uMon
