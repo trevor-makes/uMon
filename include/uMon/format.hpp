@@ -77,7 +77,7 @@ void set_prompt(const char* cmd, uint16_t addr) {
     } \
     API::print_string("?\n"); \
     return; \
-  } \
+  }
 
 #define uMON_EXPECT_UINT(TYPE, NAME, ARGS) \
   TYPE NAME; \

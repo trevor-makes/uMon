@@ -16,7 +16,7 @@ void cmd_asm(uCLI::Args args) {
 
   const char* mne_str = args.next();
   uint8_t mne = parse_mnemonic(mne_str);
-  uMON_FMT_ERROR(mne == MNE_INVALID, "mnemonic", mne_str);
+  uMON_FMT_ERROR(mne == MNE_INVALID, "op", mne_str);
 
   // TODO just print for now
   API::print_string(MNE_STR[mne]);
@@ -57,19 +57,19 @@ void cmd_asm(uCLI::Args args) {
 
     // Parse operand as number or token
     auto opr_str = opr_tok.next();
-    uint16_t tmp; // TODO
-    if (uMon::parse_unsigned(opr_str, tmp)) {
+    uint16_t value;
+    if (uMon::parse_unsigned(opr_str, value)) {
       operands[n_ops].token |= TOK_INTEGER;
-      operands[n_ops].value = tmp;
+      operands[n_ops].value = value;
     } else {
       uint8_t token = parse_token(opr_str);
-      uMON_FMT_ERROR(token == TOK_INVALID, "token", opr_str);
+      uMON_FMT_ERROR(token == TOK_INVALID, "arg", opr_str);
       operands[n_ops].token |= token;
     }
 
     // TODO just print for now
     uint8_t token = operands[n_ops].token;
-    uint16_t value = operands[n_ops].value;
+    value = operands[n_ops].value;
     if ((token & TOK_INDIRECT) != 0) {
       API::print_char('*');
       token &= ~TOK_INDIRECT;
