@@ -222,9 +222,31 @@ struct Operand {
 
 template <typename API>
 void print_token(uint8_t token) {
-  bool is_indirect = (token & TOK_INDIRECT) != 0;
+  const bool is_indirect = (token & TOK_INDIRECT) != 0;
   if (is_indirect) API::print_char('(');
   print_pgm_strtab<API>(TOK_STR, token & ~TOK_INDIRECT);
+  if (is_indirect) API::print_char(')');
+}
+
+template <typename API>
+void print_operand(Operand& op) {
+  const bool is_indirect = (op.token & TOK_INDIRECT) != 0;
+  const uint8_t token = op.token & ~TOK_INDIRECT;
+  if (is_indirect) API::print_char('(');
+  if (token < TOK_INVALID) {
+    print_pgm_strtab<API>(TOK_STR, token);
+    if (op.value != 0) {
+      int8_t value = op.value;
+      API::print_char(value < 0 ? '-' : '+');
+      API::print_char('$');
+      fmt_hex8(API::print_char, value < 0 ? -value : value);
+    }
+  } else if (token == TOK_INTEGER) {
+    API::print_char('$');
+    fmt_hex16(API::print_char, op.value);
+  } else {
+    API::print_char('?');
+  }
   if (is_indirect) API::print_char(')');
 }
 

@@ -18,12 +18,8 @@ void cmd_asm(uCLI::Args args) {
   uint8_t mne = find_pgm_strtab(MNE_STR, mne_str);
   uMON_FMT_ERROR(mne == MNE_INVALID, "op", mne_str);
 
-  // TODO just print for now
-  print_pgm_strtab<API>(MNE_STR, mne);
-  API::print_char(' ');
-
   // Parse up to 3 operands
-  // NOTE only need 2 for documented ops; 3 for 
+  // NOTE only need 2 for documented ops; 3 for undocumented BIT/RES/SET
   uint8_t n_ops = 0;
   Operand operands[3];
   for (; n_ops < 3 && args.has_next(); ++n_ops) {
@@ -71,33 +67,21 @@ void cmd_asm(uCLI::Args args) {
       uMON_FMT_ERROR(token == TOK_INVALID, "arg", opr_str);
       operands[n_ops].token |= token;
     }
-
-    // TODO just print for now
-    uint8_t token = operands[n_ops].token;
-    value = operands[n_ops].value;
-    if ((token & TOK_INDIRECT) != 0) {
-      API::print_char('*');
-      token &= ~TOK_INDIRECT;
-    }
-    if (token < TOK_INVALID) {
-      print_pgm_strtab<API>(TOK_STR, token);
-      if (value != 0) {
-        API::print_char('+');
-        fmt_hex16(API::print_char, value);
-      }
-    } else if (token == TOK_INTEGER) {
-      fmt_hex16(API::print_char, value);
-    } else {
-      API::print_char('?');
-    }
-    API::print_char(',');
   }
 
   // TODO just print for now
+  print_pgm_strtab<API>(MNE_STR, mne);
+  API::print_char(' ');
+  for (uint8_t i = 0; i < n_ops; ++i) {
+    if (i != 0) API::print_char(',');
+    print_operand<API>(operands[i]);
+  }
   API::print_char('\n');
 
-  uint16_t next = /* TODO */ start;
-  set_prompt<API>(args.command(), next);
+  uint8_t size = impl_asm<API>(start, mne);
+  if (size > 0) {
+    set_prompt<API>(args.command(), start + size);
+  }
 }
 
 template <typename API>
