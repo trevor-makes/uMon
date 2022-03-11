@@ -6,212 +6,64 @@
 namespace uMon {
 namespace z80 {
 
+#define MNEMONICS \
+  ITEM(ADC)  ITEM(ADD)  ITEM(AND)  ITEM(BIT)  ITEM(CALL) ITEM(CCF)  ITEM(CP)   \
+  ITEM(CPD)  ITEM(CPDR) ITEM(CPI)  ITEM(CPIR) ITEM(CPL)  ITEM(DAA)  ITEM(DEC)  \
+  ITEM(DI)   ITEM(DJNZ) ITEM(EI)   ITEM(EX)   ITEM(EXX)  ITEM(HALT) ITEM(IM)   \
+  ITEM(IN)   ITEM(INC)  ITEM(IND)  ITEM(INDR) ITEM(INI)  ITEM(INIR) ITEM(JP)   \
+  ITEM(JR)   ITEM(LD)   ITEM(LDD)  ITEM(LDDR) ITEM(LDI)  ITEM(LDIR) ITEM(NEG)  \
+  ITEM(NOP)  ITEM(OR)   ITEM(OTDR) ITEM(OTIR) ITEM(OUT)  ITEM(OUTD) ITEM(OUTI) \
+  ITEM(POP)  ITEM(PUSH) ITEM(RES)  ITEM(RET)  ITEM(RETI) ITEM(RETN) ITEM(RL)   \
+  ITEM(RLA)  ITEM(RLC)  ITEM(RLCA) ITEM(RLD)  ITEM(RR)   ITEM(RRA)  ITEM(RRC)  \
+  ITEM(RRCA) ITEM(RRD)  ITEM(RST)  ITEM(SBC)  ITEM(SCF)  ITEM(SET)  ITEM(SL1)  \
+  ITEM(SLA)  ITEM(SRA)  ITEM(SRL)  ITEM(SUB)  ITEM(XOR)
+
 enum Mnemonic {
-  MNE_ADC,
-  MNE_ADD,
-  MNE_AND,
-  MNE_BIT,
-  MNE_CALL,
-  MNE_CCF,
-  MNE_CP,
-  MNE_CPD,
-  MNE_CPDR,
-  MNE_CPI,
-  MNE_CPIR,
-  MNE_CPL,
-  MNE_DAA,
-  MNE_DEC,
-  MNE_DI,
-  MNE_DJNZ,
-  MNE_EI,
-  MNE_EX,
-  MNE_EXX,
-  MNE_HALT,
-  MNE_IM,
-  MNE_IN,
-  MNE_INC,
-  MNE_IND,
-  MNE_INDR,
-  MNE_INI,
-  MNE_INIR,
-  MNE_JP,
-  MNE_JR,
-  MNE_LD,
-  MNE_LDD,
-  MNE_LDDR,
-  MNE_LDI,
-  MNE_LDIR,
-  MNE_NEG,
-  MNE_NOP,
-  MNE_OR,
-  MNE_OTDR,
-  MNE_OTIR,
-  MNE_OUT,
-  MNE_OUTD,
-  MNE_OUTI,
-  MNE_POP,
-  MNE_PUSH,
-  MNE_RES,
-  MNE_RET,
-  MNE_RETI,
-  MNE_RETN,
-  MNE_RL,
-  MNE_RLA,
-  MNE_RLC,
-  MNE_RLCA,
-  MNE_RLD,
-  MNE_RR,
-  MNE_RRA,
-  MNE_RRC,
-  MNE_RRCA,
-  MNE_RRD,
-  MNE_RST,
-  MNE_SBC,
-  MNE_SCF,
-  MNE_SET,
-  MNE_SL1, // Undocumented! Alt: SLL
-  MNE_SLA,
-  MNE_SRA,
-  MNE_SRL,
-  MNE_SUB,
-  MNE_XOR,
+#define ITEM(x) MNE_##x,
+MNEMONICS
+#undef ITEM
   MNE_INVALID,
 };
 
-constexpr const char* MNE_STR[] = {
-  "ADC",
-  "ADD",
-  "AND",
-  "BIT",
-  "CALL",
-  "CCF",
-  "CP",
-  "CPD",
-  "CPDR",
-  "CPI",
-  "CPIR",
-  "CPL",
-  "DAA",
-  "DEC",
-  "DI",
-  "DJNZ",
-  "EI",
-  "EX",
-  "EXX",
-  "HALT",
-  "IM",
-  "IN",
-  "INC",
-  "IND",
-  "INDR",
-  "INI",
-  "INIR",
-  "JP",
-  "JR",
-  "LD",
-  "LDD",
-  "LDDR",
-  "LDI",
-  "LDIR",
-  "NEG",
-  "NOP",
-  "OR",
-  "OTDR",
-  "OTIR",
-  "OUT",
-  "OUTD",
-  "OUTI",
-  "POP",
-  "PUSH",
-  "RES",
-  "RET",
-  "RETI",
-  "RETN",
-  "RL",
-  "RLA",
-  "RLC",
-  "RLCA",
-  "RLD",
-  "RR",
-  "RRA",
-  "RRC",
-  "RRCA",
-  "RRD",
-  "RST",
-  "SBC",
-  "SCF",
-  "SET",
-  "SL1", // Undocumented! Alt: SLL
-  "SLA",
-  "SRA",
-  "SRL",
-  "SUB",
-  "XOR",
+#define ITEM(x) const char MNE_STR_##x[] PROGMEM = #x;
+MNEMONICS
+#undef ITEM
+
+const char* const MNE_STR[] PROGMEM = {
+#define ITEM(x) MNE_STR_##x,
+MNEMONICS
+#undef ITEM
 };
+
+#undef MNEMONICS
+
+#define TOKENS \
+  ITEM(A)   ITEM(AF)  ITEM(B)   ITEM(BC)  ITEM(C)   ITEM(D)   ITEM(DE)  \
+  ITEM(E)   ITEM(H)   ITEM(HL)  ITEM(I)   ITEM(IX)  ITEM(IXH) ITEM(IXL) \
+  ITEM(IY)  ITEM(IYH) ITEM(IYL) ITEM(L)   ITEM(M)   ITEM(NC)  ITEM(NZ)  \
+  ITEM(P)   ITEM(PE)  ITEM(PO)  ITEM(R)   ITEM(SP)  ITEM(Z)
 
 // All registers, pairs, and conditions
 enum Token {
-  TOK_A,
-  TOK_AF,
-  TOK_B,
-  TOK_BC,
-  TOK_C, // REG_C or COND_C
-  TOK_D,
-  TOK_DE,
-  TOK_E,
-  TOK_H,
-  TOK_HL,
-  TOK_I,
-  TOK_IX,
-  TOK_IXH,
-  TOK_IXL,
-  TOK_IY,
-  TOK_IYH,
-  TOK_IYL,
-  TOK_L,
-  TOK_M,
-  TOK_NC,
-  TOK_NZ,
-  TOK_P,
-  TOK_PE,
-  TOK_PO,
-  TOK_R,
-  TOK_SP,
-  TOK_Z,
+#define ITEM(x) TOK_##x,
+TOKENS
+#undef ITEM
   TOK_INVALID,
   TOK_INTEGER,
   TOK_INDIRECT = 0x80,
 };
 
-constexpr const char* TOK_STR[] = {
-  "A",
-  "AF",
-  "B",
-  "BC",
-  "C", // REG_C or COND_C
-  "D",
-  "DE",
-  "E",
-  "H",
-  "HL",
-  "I",
-  "IX",
-  "IXH",
-  "IXL",
-  "IY",
-  "IYH",
-  "IYL",
-  "L",
-  "M",
-  "NC",
-  "NZ",
-  "P",
-  "PE",
-  "PO",
-  "R",
-  "SP",
-  "Z",
+#define ITEM(x) const char TOK_STR_##x[] PROGMEM = #x;
+TOKENS
+#undef ITEM
+
+const char* const TOK_STR[] PROGMEM = {
+#define ITEM(x) TOK_STR_##x,
+TOKENS
+#undef ITEM
 };
+
+#undef TOKENS
 
 // Register operand 3-bit encodings
 enum Reg {

@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <avr/pgmspace.h>
+
 #include <stdint.h>
 #include <stdlib.h>
 
@@ -60,12 +62,24 @@ void fmt_ascii(F&& print, uint8_t c) {
   print(c);
 }
 
+// Set CLI prompt to "[cmd] $[addr] "
 template <typename API>
 void set_prompt(const char* cmd, uint16_t addr) {
   API::prompt_string(cmd);
   API::prompt_string(" $");
   fmt_hex16(API::prompt_char, addr);
   API::prompt_char(' ');
+}
+
+// Print entry from PROGMEM string table
+template <typename API>
+void print_progmem(const char* const table[], uint8_t index) {
+  char* ptr = (char*)pgm_read_ptr(table + index);
+  for (;;) {
+    char c = pgm_read_byte(ptr++);
+    if (c == '\0') return;
+    API::print_char(c);
+  }
 }
 
 #define uMON_FMT_ERROR(IS_ERR, NAME, INPUT) \

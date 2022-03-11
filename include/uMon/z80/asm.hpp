@@ -19,7 +19,7 @@ struct Operand {
 
 uint8_t parse_mnemonic(const char* str) {
   for (uint8_t i = 0; i < MNE_INVALID; ++i) {
-    if (strcasecmp(str, MNE_STR[i]) == 0) {
+    if (strcasecmp_P(str, (char*)pgm_read_ptr(MNE_STR + i)) == 0) {
       return i;
     }
   }
@@ -28,7 +28,7 @@ uint8_t parse_mnemonic(const char* str) {
 
 uint8_t parse_token(const char* str) {
   for (uint8_t i = 0; i < TOK_INVALID; ++i) {
-    if (strcasecmp(str, TOK_STR[i]) == 0) {
+    if (strcasecmp_P(str, (char*)pgm_read_ptr(TOK_STR + i)) == 0) {
       return i;
     }
   }

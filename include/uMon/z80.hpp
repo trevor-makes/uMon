@@ -19,7 +19,7 @@ void cmd_asm(uCLI::Args args) {
   uMON_FMT_ERROR(mne == MNE_INVALID, "op", mne_str);
 
   // TODO just print for now
-  API::print_string(MNE_STR[mne]);
+  print_progmem<API>(MNE_STR, mne);
   API::print_char(' ');
 
   // Parse up to 3 operands
@@ -75,7 +75,7 @@ void cmd_asm(uCLI::Args args) {
       token &= ~TOK_INDIRECT;
     }
     if (token < TOK_INVALID) {
-      API::print_string(TOK_STR[token]);
+      print_progmem<API>(TOK_STR, token);
       if (value != 0) {
         API::print_char('+');
         fmt_hex16(API::print_char, value);
