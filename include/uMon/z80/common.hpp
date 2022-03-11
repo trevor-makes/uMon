@@ -6,8 +6,12 @@
 namespace uMon {
 namespace z80 {
 
+// ============================================================================
+// Mnemonic Definitions
+// ============================================================================
+
 // Alphabetic index of assembly mnemonics
-enum Mnemonic {
+enum {
 #define ITEM(x) MNE_##x,
 #include "mnemonics.def"
 #undef ITEM
@@ -26,8 +30,101 @@ const char* const MNE_STR[] PROGMEM = {
 #undef ITEM
 };
 
+// ============================================================================
+// ALU Encodings
+// ============================================================================
+
+#define ALU_LIST \
+ITEM(ADD) ITEM(ADC) ITEM(SUB) ITEM(SBC) ITEM(AND) ITEM(XOR) ITEM(OR) ITEM(CP)
+
+enum {
+#define ITEM(x) ALU_##x,
+ALU_LIST
+#undef ITEM
+};
+
+// Mapping from ALU encoding to mnemonic
+const uint8_t ALU_MNE[] = {
+#define ITEM(x) MNE_##x,
+ALU_LIST
+#undef ITEM
+};
+
+#undef ALU_LIST
+
+// ============================================================================
+// CB-prefix OP Encodings
+// ============================================================================
+
+#define CB_LIST ITEM(BIT) ITEM(RES) ITEM(SET)
+
+enum {
+  CB_ROT, // Ops with additional 3-bit encoding
+#define ITEM(x) CB_##x,
+CB_LIST
+#undef ITEM
+};
+
+// Mapping from CB op to mnemonic
+const uint8_t CB_MNE[] = {
+  MNE_INVALID,
+#define ITEM(x) MNE_##x,
+CB_LIST
+#undef ITEM
+};
+
+#undef CB_LIST
+
+// ============================================================================
+// CB-prefix ROT Encodings
+// ============================================================================
+
+#define ROT_LIST \
+ITEM(RLC) ITEM(RRC) ITEM(RL) ITEM(RR) ITEM(SLA) ITEM(SRA) ITEM(SL1) ITEM(SRL)
+
+enum {
+#define ITEM(x) ROT_##x,
+ROT_LIST
+#undef ITEM
+};
+
+// Mapping from ROT op to mnemonic
+const uint8_t ROT_MNE[] = {
+#define ITEM(x) MNE_##x,
+ROT_LIST
+#undef ITEM
+};
+
+#undef ROT_LIST
+
+// ============================================================================
+// Misc Encodings
+// ============================================================================
+
+#define MISC_LIST \
+ITEM(RLCA) ITEM(RRCA) ITEM(RLA) ITEM(RRA) ITEM(DAA) ITEM(CPL) ITEM(SCF) ITEM(CCF)
+
+enum {
+#define ITEM(x) MISC_##x,
+MISC_LIST
+#undef ITEM
+};
+
+// Mapping from MISC op to mnemonic
+const uint8_t MISC_MNE[] = {
+#define ITEM(x) MNE_##x,
+MISC_LIST
+#undef ITEM
+};
+
+#undef MISC_LIST
+
+// ============================================================================
+// Token Definitions
+// ============================================================================
+
 // Alphabetic index of all registers, pairs, and conditions
-enum Token {
+enum {
 #define ITEM(x) TOK_##x,
 #include "tokens.def"
 #undef ITEM
@@ -48,97 +145,88 @@ const char* const TOK_STR[] PROGMEM = {
 #undef ITEM
 };
 
-// Register operand 3-bit encodings
-enum Reg {
-  REG_B = 0,
-  REG_C = 1,
-  REG_D = 2,
-  REG_E = 3,
-  REG_H = 4,
-  REG_L = 5,
-  REG_M = 6, // (HL), memory at address pointed to by HL
-  REG_A = 7,
+// ============================================================================
+// Register Encodings
+// ============================================================================
+
+#define REG_LIST \
+ITEM(B, TOK_B) ITEM(C, TOK_C) ITEM(D, TOK_D) ITEM(E, TOK_E) ITEM(H, TOK_H) \
+ITEM(L, TOK_L) ITEM(M, TOK_INDIRECT | TOK_HL) ITEM(A, TOK_A)
+
+enum {
+#define ITEM(name, token) REG_##name,
+REG_LIST
+#undef ITEM
 };
 
-constexpr const char* REG_STR[] = { "B", "C", "D", "E", "H", "L", "(HL)", "A" };
-
-// Register pair operand 2-bit encodings
-enum Pair {
-  PAIR_BC = 0,
-  PAIR_DE = 1,
-  PAIR_HL = 2,
-  PAIR_SP = 3, // id "SP" is poisoned by AVR macro definition...
-  PAIR_AF = 3, // alternate meaning for PUSH/POP
+// Mapping from reg encoding to token
+const uint8_t REG_TOK[] = {
+#define ITEM(name, token) token,
+REG_LIST
+#undef ITEM
 };
 
-constexpr const char* PAIR_STR[] = { "BC", "DE", "HL", "SP" };
+#undef REG_LIST
 
-// Branch condition 3-bit encodings
-// xx- = [Z, C, P/V, S], --x = [clear, set]
-enum Cond {
-  COND_NZ = 0, //   Z = 0 : non-zero or not equal
-  COND_Z  = 1, //   Z = 1 : zero or equal
-  COND_NC = 2, //   C = 0 : no overflow or carry clear
-  COND_C  = 3, //   C = 1 : unsigned overflow or carry set
-  COND_PO = 4, // P/V = 0 : odd parity or no overflow
-  COND_PE = 5, // P/V = 1 : even parity or signed overflow
-  COND_P  = 6, //   S = 0 : positive or high bit clear
-  COND_M  = 7, //   S = 1 : negative or high bit set
+// ============================================================================
+// Register Pair Encodings
+// ============================================================================
+
+#define PAIR_LIST ITEM(BC) ITEM(DE) ITEM(HL) ITEM(SP)
+
+enum {
+#define ITEM(x) PAIR_##x,
+PAIR_LIST
+#undef ITEM
 };
 
-constexpr const char* COND_STR[] = { "NZ", "Z", "NC", "C", "PO", "PE", "P", "M" };
-
-// ALU operation 3-bit encodings
-enum ALU {
-  ALU_ADD = 0,
-  ALU_ADC = 1, // id "ADC" is poisoned by AVR macro definition...
-  ALU_SUB = 2,
-  ALU_SBC = 3,
-  ALU_AND = 4,
-  ALU_XOR = 5,
-  ALU_OR  = 6,
-  ALU_CP  = 7,
+// Mapping from pair encoding to token
+const uint8_t PAIR_TOK[] = {
+#define ITEM(x) TOK_##x,
+PAIR_LIST
+#undef ITEM
 };
 
-constexpr const char* ALU_STR[] = { "ADD", "ADC", "SUB", "SBC", "AND", "XOR", "OR", "CP" };
+#undef PAIR_LIST
 
-// CB prefix bit ops 2-bit encoding
-enum CB {
-  CB_ROT = 0,
-  CB_BIT = 1,
-  CB_RES = 2,
-  CB_SET = 3,
+// ============================================================================
+// Branch Condition Encodings
+// ============================================================================
+
+#define COND_LIST \
+ITEM(NZ) ITEM(Z) ITEM(NC) ITEM(C) ITEM(PO) ITEM(PE) ITEM(P) ITEM(M)
+
+enum {
+#define ITEM(x) COND_##x,
+COND_LIST
+#undef ITEM
 };
 
-constexpr const char* CB_STR[] = { "", "BIT", "RES", "SET" };
-
-// Rotate/shift operation 3-bit encodings
-enum Rot {
-  ROT_RLC = 0,
-  ROT_RRC = 1,
-  ROT_RL  = 2,
-  ROT_RR  = 3,
-  ROT_SLA = 4,
-  ROT_SRA = 5,
-  ROT_SLL = 6, // NOTE illegal/undefined opcode; should use SLA instead
-  ROT_SRL = 7,
+// Mapping from cond encoding to token
+const uint8_t COND_TOK[] = {
+#define ITEM(x) TOK_##x,
+COND_LIST
+#undef ITEM
 };
 
-constexpr const char* ROT_STR[] = { "RLC", "RRC", "RL", "RR", "SLA", "SRA", "SL1", "SRL" };
+#undef COND_LIST
 
-// Misc AF ops 3-bit encoding
-enum Misc {
-  MISC_RLCA = 0,
-  MISC_RRCA = 1,
-  MISC_RLA = 2,
-  MISC_RRA = 3,
-  MISC_DAA = 4,
-  MISC_CPL = 5,
-  MISC_SCF = 6,
-  MISC_CCF = 7,
+// ============================================================================
+// Token Functions
+// ============================================================================
+
+struct Operand {
+  uint8_t token;
+  uint16_t value;
 };
 
-constexpr const char* MISC_STR[] = { "RLCA", "RRCA", "RLA", "RRA", "DAA", "CPL", "SCF", "CCF" };
+template <typename API>
+void print_token(uint8_t token) {
+  bool is_indirect = (token & TOK_INDIRECT) != 0;
+  if (is_indirect) API::print_char('(');
+  print_pgm_strtab<API>(TOK_STR, token & ~TOK_INDIRECT);
+  if (is_indirect) API::print_char(')');
+}
 
 } // namespace z80
 } // namespace uMon

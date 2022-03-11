@@ -12,10 +12,5 @@
 namespace uMon {
 namespace z80 {
 
-struct Operand {
-  uint8_t token;
-  uint16_t value;
-};
-
 } // namespace z80
 } // namespace uMon

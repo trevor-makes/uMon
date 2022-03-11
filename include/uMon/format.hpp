@@ -73,7 +73,7 @@ void set_prompt(const char* cmd, uint16_t addr) {
 
 // Print entry from PROGMEM string table
 template <typename API>
-void print_progmem(const char* const table[], uint8_t index) {
+void print_pgm_strtab(const char* const table[], uint8_t index) {
   char* ptr = (char*)pgm_read_ptr(table + index);
   for (;;) {
     char c = pgm_read_byte(ptr++);
@@ -84,7 +84,7 @@ void print_progmem(const char* const table[], uint8_t index) {
 
 // Find index of string in PROGMEM table
 template <uint8_t N>
-uint8_t find_progmem(const char* const (&table)[N], const char* str) {
+uint8_t find_pgm_strtab(const char* const (&table)[N], const char* str) {
   for (uint8_t i = 0; i < N; ++i) {
     if (strcasecmp_P(str, (char*)pgm_read_ptr(table + i)) == 0) {
       return i;

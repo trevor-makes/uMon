@@ -15,11 +15,11 @@ void cmd_asm(uCLI::Args args) {
   uMON_EXPECT_UINT(uint16_t, start, args);
 
   const char* mne_str = args.next();
-  uint8_t mne = find_progmem(MNE_STR, mne_str);
+  uint8_t mne = find_pgm_strtab(MNE_STR, mne_str);
   uMON_FMT_ERROR(mne == MNE_INVALID, "op", mne_str);
 
   // TODO just print for now
-  print_progmem<API>(MNE_STR, mne);
+  print_pgm_strtab<API>(MNE_STR, mne);
   API::print_char(' ');
 
   // Parse up to 3 operands
@@ -67,7 +67,7 @@ void cmd_asm(uCLI::Args args) {
       operands[n_ops].token |= TOK_INTEGER;
       operands[n_ops].value = value;
     } else {
-      uint8_t token = find_progmem(TOK_STR, opr_str);
+      uint8_t token = find_pgm_strtab(TOK_STR, opr_str);
       uMON_FMT_ERROR(token == TOK_INVALID, "arg", opr_str);
       operands[n_ops].token |= token;
     }
@@ -80,7 +80,7 @@ void cmd_asm(uCLI::Args args) {
       token &= ~TOK_INDIRECT;
     }
     if (token < TOK_INVALID) {
-      print_progmem<API>(TOK_STR, token);
+      print_pgm_strtab<API>(TOK_STR, token);
       if (value != 0) {
         API::print_char('+');
         fmt_hex16(API::print_char, value);
