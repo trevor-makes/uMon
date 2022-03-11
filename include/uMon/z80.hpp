@@ -15,7 +15,7 @@ void cmd_asm(uCLI::Args args) {
   uMON_EXPECT_UINT(uint16_t, start, args);
 
   const char* mne_str = args.next();
-  uint8_t mne = parse_mnemonic(mne_str);
+  uint8_t mne = find_progmem(MNE_STR, mne_str);
   uMON_FMT_ERROR(mne == MNE_INVALID, "op", mne_str);
 
   // TODO just print for now
@@ -55,14 +55,19 @@ void cmd_asm(uCLI::Args args) {
       }
     }
 
-    // Parse operand as number or token
+    // Parse operand as char, number, or token
+    bool is_string = opr_tok.is_string();
     auto opr_str = opr_tok.next();
     uint16_t value;
-    if (uMon::parse_unsigned(opr_str, value)) {
+    if (is_string) {
+      uMON_FMT_ERROR(strlen(opr_str) > 1, "char", opr_str);
+      operands[n_ops].token |= TOK_INTEGER;
+      operands[n_ops].value = opr_str[0];
+    } else if (uMon::parse_unsigned(opr_str, value)) {
       operands[n_ops].token |= TOK_INTEGER;
       operands[n_ops].value = value;
     } else {
-      uint8_t token = parse_token(opr_str);
+      uint8_t token = find_progmem(TOK_STR, opr_str);
       uMON_FMT_ERROR(token == TOK_INVALID, "arg", opr_str);
       operands[n_ops].token |= token;
     }
