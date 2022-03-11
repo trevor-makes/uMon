@@ -6,64 +6,47 @@
 namespace uMon {
 namespace z80 {
 
-#define MNEMONICS \
-  ITEM(ADC)  ITEM(ADD)  ITEM(AND)  ITEM(BIT)  ITEM(CALL) ITEM(CCF)  ITEM(CP)   \
-  ITEM(CPD)  ITEM(CPDR) ITEM(CPI)  ITEM(CPIR) ITEM(CPL)  ITEM(DAA)  ITEM(DEC)  \
-  ITEM(DI)   ITEM(DJNZ) ITEM(EI)   ITEM(EX)   ITEM(EXX)  ITEM(HALT) ITEM(IM)   \
-  ITEM(IN)   ITEM(INC)  ITEM(IND)  ITEM(INDR) ITEM(INI)  ITEM(INIR) ITEM(JP)   \
-  ITEM(JR)   ITEM(LD)   ITEM(LDD)  ITEM(LDDR) ITEM(LDI)  ITEM(LDIR) ITEM(NEG)  \
-  ITEM(NOP)  ITEM(OR)   ITEM(OTDR) ITEM(OTIR) ITEM(OUT)  ITEM(OUTD) ITEM(OUTI) \
-  ITEM(POP)  ITEM(PUSH) ITEM(RES)  ITEM(RET)  ITEM(RETI) ITEM(RETN) ITEM(RL)   \
-  ITEM(RLA)  ITEM(RLC)  ITEM(RLCA) ITEM(RLD)  ITEM(RR)   ITEM(RRA)  ITEM(RRC)  \
-  ITEM(RRCA) ITEM(RRD)  ITEM(RST)  ITEM(SBC)  ITEM(SCF)  ITEM(SET)  ITEM(SL1)  \
-  ITEM(SLA)  ITEM(SRA)  ITEM(SRL)  ITEM(SUB)  ITEM(XOR)
-
+// Alphabetic index of assembly mnemonics
 enum Mnemonic {
 #define ITEM(x) MNE_##x,
-MNEMONICS
+#include "mnemonics.def"
 #undef ITEM
   MNE_INVALID,
 };
 
+// Individual mnemonic strings in Flash memory
 #define ITEM(x) const char MNE_STR_##x[] PROGMEM = #x;
-MNEMONICS
+#include "mnemonics.def"
 #undef ITEM
 
+// Flash memory table of mnemonic strings
 const char* const MNE_STR[] PROGMEM = {
 #define ITEM(x) MNE_STR_##x,
-MNEMONICS
+#include "mnemonics.def"
 #undef ITEM
 };
 
-#undef MNEMONICS
-
-#define TOKENS \
-  ITEM(A)   ITEM(AF)  ITEM(B)   ITEM(BC)  ITEM(C)   ITEM(D)   ITEM(DE)  \
-  ITEM(E)   ITEM(H)   ITEM(HL)  ITEM(I)   ITEM(IX)  ITEM(IXH) ITEM(IXL) \
-  ITEM(IY)  ITEM(IYH) ITEM(IYL) ITEM(L)   ITEM(M)   ITEM(NC)  ITEM(NZ)  \
-  ITEM(P)   ITEM(PE)  ITEM(PO)  ITEM(R)   ITEM(SP)  ITEM(Z)
-
-// All registers, pairs, and conditions
+// Alphabetic index of all registers, pairs, and conditions
 enum Token {
 #define ITEM(x) TOK_##x,
-TOKENS
+#include "tokens.def"
 #undef ITEM
   TOK_INVALID,
   TOK_INTEGER,
   TOK_INDIRECT = 0x80,
 };
 
+// Individual token strings in Flash memory
 #define ITEM(x) const char TOK_STR_##x[] PROGMEM = #x;
-TOKENS
+#include "tokens.def"
 #undef ITEM
 
+// Flash memory table of token strings
 const char* const TOK_STR[] PROGMEM = {
 #define ITEM(x) TOK_STR_##x,
-TOKENS
+#include "tokens.def"
 #undef ITEM
 };
-
-#undef TOKENS
 
 // Register operand 3-bit encodings
 enum Reg {
