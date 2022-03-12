@@ -11,6 +11,54 @@ namespace uMon {
 namespace z80 {
 
 template <typename API>
+void parse_operand(uCLI::Tokens tokens, Operand& opr) {
+  opr.token = TOK_INVALID;
+  opr.value = 0;
+
+  // Handle indirect operand surronded by parentheses
+  bool is_indirect = false;
+  if (tokens.peek_char() == '(') {
+    is_indirect = true;
+    tokens.split_at('(');
+    tokens = tokens.split_at(')');
+
+    // Split optional displacement following +/-
+    uCLI::Tokens disp_tok = tokens;
+    bool is_minus = false;
+    disp_tok.split_at('+');
+    if (!disp_tok.has_next()) {
+      disp_tok = tokens;
+      disp_tok.split_at('-');
+      is_minus = true;
+    }
+
+    // Parse displacement and apply sign
+    uMON_OPTION_UINT(uint16_t, disp, disp_tok, 0);
+    opr.value = is_minus ? -disp : disp;
+  }
+
+  // Parse operand as char, number, or token
+  bool is_string = tokens.is_string();
+  auto opr_str = tokens.next();
+  uint16_t value;
+  if (is_string) {
+    uMON_FMT_ERROR(strlen(opr_str) > 1, "char", opr_str);
+    opr.token = TOK_INTEGER;
+    opr.value = opr_str[0];
+  } else if (uMon::parse_unsigned(opr_str, value)) {
+    opr.token = TOK_INTEGER;
+    opr.value = value;
+  } else {
+    opr.token = find_pgm_strtab(TOK_STR, opr_str);
+    uMON_FMT_ERROR(opr.token == TOK_INVALID, "arg", opr_str);
+  }
+
+  if (is_indirect) {
+    opr.token |= TOK_INDIRECT;
+  }
+}
+
+template <typename API>
 void cmd_asm(uCLI::Args args) {
   uMON_EXPECT_UINT(uint16_t, start, args);
 
@@ -23,49 +71,9 @@ void cmd_asm(uCLI::Args args) {
   uint8_t n_ops = 0;
   Operand operands[3];
   for (; n_ops < 3 && args.has_next(); ++n_ops) {
-    uCLI::Tokens opr_tok = args.split_at(',');
-
-    operands[n_ops].token = 0;
-    operands[n_ops].value = 0;
-
-    // Handle indirect operand surronded by parentheses
-    if (opr_tok.peek_char() == '(') {
-      operands[n_ops].token = TOK_INDIRECT;
-      opr_tok.split_at('(');
-      opr_tok = opr_tok.split_at(')');
-
-      // Split optional displacement following +/-
-      uCLI::Tokens disp_tok = opr_tok;
-      bool is_minus = false;
-      disp_tok.split_at('+');
-      if (!disp_tok.has_next()) {
-        disp_tok = opr_tok;
-        disp_tok.split_at('-');
-        is_minus = true;
-      }
-
-      // Parse displacement and apply sign
-      uMON_OPTION_UINT(uint16_t, disp, disp_tok, 0);
-      if (disp != 0) {
-        operands[n_ops].value = is_minus ? -disp : disp;
-      }
-    }
-
-    // Parse operand as char, number, or token
-    bool is_string = opr_tok.is_string();
-    auto opr_str = opr_tok.next();
-    uint16_t value;
-    if (is_string) {
-      uMON_FMT_ERROR(strlen(opr_str) > 1, "char", opr_str);
-      operands[n_ops].token |= TOK_INTEGER;
-      operands[n_ops].value = opr_str[0];
-    } else if (uMon::parse_unsigned(opr_str, value)) {
-      operands[n_ops].token |= TOK_INTEGER;
-      operands[n_ops].value = value;
-    } else {
-      uint8_t token = find_pgm_strtab(TOK_STR, opr_str);
-      uMON_FMT_ERROR(token == TOK_INVALID, "arg", opr_str);
-      operands[n_ops].token |= token;
+    parse_operand<API>(args.split_at(','), operands[n_ops]);
+    if ((operands[n_ops].token & ~TOK_INDIRECT) == TOK_INVALID) {
+      return;
     }
   }
 
