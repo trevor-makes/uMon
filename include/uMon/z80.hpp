@@ -61,32 +61,31 @@ void parse_operand(uCLI::Tokens tokens, Operand& opr) {
 template <typename API>
 void cmd_asm(uCLI::Args args) {
   uMON_EXPECT_UINT(uint16_t, start, args);
+  Instruction inst;
 
   const char* mne_str = args.next();
-  uint8_t mne = find_pgm_strtab(MNE_STR, mne_str);
-  uMON_FMT_ERROR(mne == MNE_INVALID, "op", mne_str);
+  inst.mnemonic = find_pgm_strtab(MNE_STR, mne_str);
+  uMON_FMT_ERROR(inst.mnemonic == MNE_INVALID, "op", mne_str);
 
   // Parse up to 3 operands
   // NOTE only need 2 for documented ops; 3 for undocumented BIT/RES/SET
   uint8_t n_ops = 0;
-  Operand operands[3];
-  for (; n_ops < 3 && args.has_next(); ++n_ops) {
-    parse_operand<API>(args.split_at(','), operands[n_ops]);
-    if ((operands[n_ops].token & ~TOK_INDIRECT) == TOK_INVALID) {
+  for (; n_ops < 3 && args.has_next(); ++n_ops) { // TODO magic num
+    Operand& op = inst.operands[n_ops];
+    parse_operand<API>(args.split_at(','), op);
+    if (op.token == TOK_INVALID) {
       return;
     }
   }
+  if (n_ops < 3) {
+    inst.operands[n_ops].token = TOK_INVALID;
+  }
 
   // TODO just print for now
-  print_pgm_strtab<API>(MNE_STR, mne);
-  API::print_char(' ');
-  for (uint8_t i = 0; i < n_ops; ++i) {
-    if (i != 0) API::print_char(',');
-    print_operand<API>(operands[i]);
-  }
+  print_instruction<API>(inst);
   API::print_char('\n');
 
-  uint8_t size = impl_asm<API>(start, mne);
+  uint8_t size = impl_asm<API>(start, inst);
   if (size > 0) {
     set_prompt<API>(args.command(), start + size);
   }

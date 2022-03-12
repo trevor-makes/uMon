@@ -220,6 +220,11 @@ struct Operand {
   uint16_t value;
 };
 
+struct Instruction {
+  uint8_t mnemonic;
+  Operand operands[3];
+};
+
 template <typename API>
 void print_token(uint8_t token) {
   const bool is_indirect = (token & TOK_INDIRECT) != 0;
@@ -248,6 +253,18 @@ void print_operand(Operand& op) {
     API::print_char('?');
   }
   if (is_indirect) API::print_char(')');
+}
+
+template <typename API>
+void print_instruction(Instruction& inst) {
+  print_pgm_strtab<API>(MNE_STR, inst.mnemonic);
+  API::print_char(' ');
+  for (uint8_t i = 0; i < 3; ++i) { // TODO magic number
+    Operand& op = inst.operands[i];
+    if (op.token == TOK_INVALID) break;
+    if (i != 0) API::print_char(',');
+    print_operand<API>(op);
+  }
 }
 
 } // namespace z80
