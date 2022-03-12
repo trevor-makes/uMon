@@ -220,9 +220,11 @@ struct Operand {
   uint16_t value;
 };
 
+constexpr const uint8_t MAX_OPERANDS = 2;
+
 struct Instruction {
   uint8_t mnemonic;
-  Operand operands[3];
+  Operand operands[MAX_OPERANDS];
 };
 
 template <typename API>
@@ -258,11 +260,10 @@ void print_operand(Operand& op) {
 template <typename API>
 void print_instruction(Instruction& inst) {
   print_pgm_strtab<API>(MNE_STR, inst.mnemonic);
-  API::print_char(' ');
-  for (uint8_t i = 0; i < 3; ++i) { // TODO magic number
+  for (uint8_t i = 0; i < MAX_OPERANDS; ++i) { // TODO magic number
     Operand& op = inst.operands[i];
     if (op.token == TOK_INVALID) break;
-    if (i != 0) API::print_char(',');
+    API::print_char(i == 0 ? ' ' : ',');
     print_operand<API>(op);
   }
 }

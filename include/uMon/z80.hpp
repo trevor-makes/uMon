@@ -61,25 +61,21 @@ void parse_operand(uCLI::Tokens tokens, Operand& opr) {
 template <typename API>
 void cmd_asm(uCLI::Args args) {
   uMON_EXPECT_UINT(uint16_t, start, args);
+
+  // Parse mnemonic
   Instruction inst;
+  const char* mnemonic = args.next();
+  inst.mnemonic = find_pgm_strtab(MNE_STR, mnemonic);
+  uMON_FMT_ERROR(inst.mnemonic == MNE_INVALID, "op", mnemonic);
 
-  const char* mne_str = args.next();
-  inst.mnemonic = find_pgm_strtab(MNE_STR, mne_str);
-  uMON_FMT_ERROR(inst.mnemonic == MNE_INVALID, "op", mne_str);
-
-  // Parse up to 3 operands
-  // NOTE only need 2 for documented ops; 3 for undocumented BIT/RES/SET
-  uint8_t n_ops = 0;
-  for (; n_ops < 3 && args.has_next(); ++n_ops) { // TODO magic num
-    Operand& op = inst.operands[n_ops];
+  // Parse operands
+  for (Operand& op : inst.operands) {
+    op.token = TOK_INVALID;
+    if (!args.has_next()) break;
     parse_operand<API>(args.split_at(','), op);
-    if (op.token == TOK_INVALID) {
-      return;
-    }
+    if (op.token == TOK_INVALID) return;
   }
-  if (n_ops < 3) {
-    inst.operands[n_ops].token = TOK_INVALID;
-  }
+  // TODO error if unparsed operands remain?
 
   // TODO just print for now
   print_instruction<API>(inst);
