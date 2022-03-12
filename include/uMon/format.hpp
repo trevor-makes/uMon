@@ -71,15 +71,20 @@ void set_prompt(const char* cmd, uint16_t addr) {
   API::prompt_char(' ');
 }
 
-// Print entry from PROGMEM string table
 template <typename API>
-void print_pgm_strtab(const char* const table[], uint8_t index) {
-  char* ptr = (char*)pgm_read_ptr(table + index);
+void print_pgm_string(const char* str) {
   for (;;) {
-    char c = pgm_read_byte(ptr++);
+    char c = pgm_read_byte(str++);
     if (c == '\0') return;
     API::print_char(c);
   }
+}
+
+// Print entry from PROGMEM string table
+template <typename API>
+void print_pgm_strtab(const char* const table[], uint8_t index) {
+  char* str = (char*)pgm_read_ptr(table + index);
+  print_pgm_string<API>(str);
 }
 
 // Find index of string in PROGMEM table

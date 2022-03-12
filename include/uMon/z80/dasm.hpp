@@ -49,7 +49,7 @@ void print_disp(uint16_t addr) {
 // Print IX/IY given prefix
 template <typename API>
 void print_index_reg(uint8_t prefix) {
-  print_token<API>(prefix == 0xDD ? TOK_IX : TOK_IY);
+  print_pgm_string<API>(prefix == 0xDD ? TOK_STR_IX : TOK_STR_IY);
 }
 
 // Print (IX/IY+disp) given address of displacement byte
@@ -83,7 +83,7 @@ void print_pair(uint8_t pair, uint8_t prefix, bool use_af = false) {
   if (has_prefix && pair == PAIR_HL) {
     print_index_reg<API>(prefix);
   } else if (use_af && pair == PAIR_SP) {
-    print_token<API>(TOK_AF);
+    print_pgm_string<API>(TOK_STR_AF);
   } else {
     print_token<API>(PAIR_TOK[pair]);
   }
@@ -94,7 +94,9 @@ template <typename API>
 uint16_t decode_in_out_c(uint16_t addr, uint8_t code) {
   const bool is_out = (code & 01) == 01;
   const uint8_t reg = (code & 070) >> 3;
-  API::print_string(is_out ? "OUT (C)," : "IN ");
+  print_pgm_string<API>(is_out ? MNE_STR_OUT : MNE_STR_IN);
+  API::print_char(' ');
+  if (is_out) { API::print_string("(C),"); }
   // NOTE reg (HL) is undefined; OUT sends 0 and IN sets flags without storing
   if (reg == REG_M) {
     API::print_char('?');
@@ -110,9 +112,9 @@ template <typename API>
 uint16_t decode_hl_adc(uint16_t addr, uint8_t code) {
   const bool is_adc = (code & 010) == 010;
   const uint8_t pair = (code & 060) >> 4;
-  API::print_string(is_adc ? "ADC" : "SBC");
+  print_pgm_string<API>(is_adc ? MNE_STR_ADC : MNE_STR_SBC);
   API::print_char(' ');
-  print_token<API>(TOK_HL);
+  print_pgm_string<API>(TOK_STR_HL);
   API::print_char(',');
   print_token<API>(PAIR_TOK[pair]);
   return addr + 1;
@@ -123,7 +125,8 @@ template <typename API>
 uint16_t decode_ld_pair_ind(uint16_t addr, uint8_t code) {
   const bool is_load = (code & 010) == 010;
   const uint8_t pair = (code & 060) >> 4;
-  API::print_string("LD ");
+  print_pgm_string<API>(MNE_STR_LD);
+  API::print_char(' ');
   if (is_load) {
     print_token<API>(PAIR_TOK[pair]);
     API::print_char(',');
@@ -148,10 +151,11 @@ uint16_t decode_ld_ir(uint16_t addr, uint8_t code) {
     if (is_load) {
       print_error<API>(0xED, code);
     } else {
-      API::print_string(is_rl ? "RLD" : "RRD");
+      print_pgm_string<API>(is_rl ? MNE_STR_RLD : MNE_STR_RRD);
     }
   } else {
-    API::print_string("LD ");
+    print_pgm_string<API>(MNE_STR_LD);
+    API::print_char(' ');
     if (is_load) { API::print_string("A,"); }
     API::print_char(is_rl ? 'R' : 'I');
     if (!is_load) { API::print_string(",A"); }
@@ -162,14 +166,15 @@ uint16_t decode_ld_ir(uint16_t addr, uint8_t code) {
 // Decode block transfer ops: ED [10 1-- 0--]
 template <typename API>
 uint16_t decode_block_ops(uint16_t addr, uint8_t code) {
-  static constexpr const char* OPS[] = { "LD", "CP", "IN", "OUT" };
+  static constexpr const uint8_t OPS[4][4] = {
+    { MNE_LDI, MNE_LDD, MNE_LDIR, MNE_LDDR },
+    { MNE_CPI, MNE_CPD, MNE_CPIR, MNE_CPDR },
+    { MNE_INI, MNE_IND, MNE_INIR, MNE_INDR },
+    { MNE_OUTI, MNE_OUTD, MNE_OTIR, MNE_OTDR },
+  };
   const uint8_t op = (code & 03);
-  const bool is_rep = (code & 020) == 020;
-  const bool is_dec = (code & 010) == 010;
-  const bool is_ot = is_rep && op == 3;
-  API::print_string(is_ot ? "OT" : OPS[op]);
-  API::print_char(is_dec ? 'D' : 'I');
-  if (is_rep) { API::print_char('R'); }
+  const uint8_t var = (code & 030) >> 3;
+  print_pgm_strtab<API>(MNE_STR, OPS[op][var]);
   return addr + 1;
 }
 
@@ -187,16 +192,17 @@ uint16_t decode_ed(uint16_t addr) {
       return decode_ld_pair_ind<API>(addr, code);
     case 4:
       // NOTE only 0104/0x44 is documented, but the 2nd octal digit is ignored
-      API::print_string("NEG");
+      print_pgm_string<API>(MNE_STR_NEG);
       return addr + 1;
     case 5:
       // NOTE only 0x45 RETN is documented
-      API::print_string(code == 0x4D ? "RETI" : "RETN");
+      print_pgm_string<API>(code == 0x4D ? MNE_STR_RETI : MNE_STR_RETN);
       return addr + 1;
     case 6:
       // NOTE only 0x46, 0x56, 0x5E are documented; '?' sets an undefined mode
       static constexpr const char IM[] = { '0', '?', '1', '2' };
-      API::print_string("IM ");
+      print_pgm_string<API>(MNE_STR_IM);
+      API::print_char(' ');
       API::print_char(IM[(code & 030) >> 3]);
       return addr + 1;
     case 7:
@@ -249,24 +255,29 @@ template <typename API>
 uint16_t decode_jr(uint16_t addr, uint8_t code) {
   switch (code & 070) {
   case 000:
-    API::print_string("NOP");
+    print_pgm_string<API>(MNE_STR_NOP);
     return addr + 1;
   case 010:
-    API::print_string("EX AF");
+    print_pgm_string<API>(MNE_STR_EX);
+    API::print_char(' ');
+    print_pgm_string<API>(TOK_STR_AF);
     return addr + 1;
   case 020:
     // DJNZ e
-    API::print_string("DJNZ ");
+    print_pgm_string<API>(MNE_STR_DJNZ);
+    API::print_char(' ');
     print_disp<API>(addr);
     return addr + 2;
   case 030:
     // JR e
-    API::print_string("JR ");
+    print_pgm_string<API>(MNE_STR_JR);
+    API::print_char(' ');
     print_disp<API>(addr);
     return addr + 2;
   default:
     // JR cc, e
-    API::print_string("JR ");
+    print_pgm_string<API>(MNE_STR_JR);
+    API::print_char(' ');
     print_token<API>(COND_TOK[(code & 030) >> 3]);
     API::print_char(',');
     print_disp<API>(addr);
@@ -281,14 +292,16 @@ uint16_t decode_ld_add_pair(uint16_t addr, uint8_t code, uint8_t prefix) {
   const uint16_t pair = (code & 060) >> 4;
   if (is_load) {
     // LD rr, nn
-    API::print_string("LD ");
+    print_pgm_string<API>(MNE_STR_LD);
+    API::print_char(' ');
     print_pair<API>(pair, prefix);
     API::print_char(',');
     print_imm_word<API>(addr + 1);
     return addr + 3;
   } else {
     // ADD HL, rr
-    API::print_string("ADD ");
+    print_pgm_string<API>(MNE_STR_ADD);
+    API::print_char(' ');
     print_pair<API>(PAIR_HL, prefix);
     API::print_char(',');
     print_pair<API>(pair, prefix);
@@ -313,7 +326,8 @@ uint16_t decode_ld_ind(uint16_t addr, uint8_t code, uint8_t prefix) {
   const bool is_store = (code & 010) == 0; // A/HL is src instead of dst
   const bool use_hl = (code & 060) == 040; // Use HL instead of A
   const bool use_pair = (code & 040) == 0; // Use (BC/DE) instead of (nn)
-  API::print_string("LD ");
+    print_pgm_string<API>(MNE_STR_LD);
+    API::print_char(' ');
   // Print A/HL/IX/IY first for loads
   if (!is_store) {
     print_hl_or_a<API>(use_hl, prefix);
@@ -345,7 +359,8 @@ template <typename API>
 uint16_t decode_ld_reg_imm(uint16_t addr, uint8_t code, uint8_t prefix) {
   const uint8_t reg = (code & 070) >> 3;
   const bool has_prefix = prefix != 0;
-  API::print_string("LD ");
+    print_pgm_string<API>(MNE_STR_LD);
+    API::print_char(' ');
   if (has_prefix && reg == REG_M) {
     print_index_ind<API>(addr + 1, prefix);
     API::print_char(',');
@@ -364,7 +379,8 @@ template <typename API>
 uint16_t decode_inc_dec(uint16_t addr, uint8_t code, uint8_t prefix) {
   const bool is_pair = (code & 04) == 0;
   const bool is_inc = is_pair ? (code & 010) == 0 : (code & 01) == 0;
-  API::print_string(is_inc ? "INC " : "DEC ");
+  print_pgm_string<API>(is_inc ? MNE_STR_INC : MNE_STR_DEC);
+  API::print_char(' ');
   if (is_pair) {
     const uint8_t pair = (code & 060) >> 4;
     print_pair<API>(pair, prefix);
@@ -388,7 +404,7 @@ template <typename API>
 uint16_t decode_ld_reg_reg(uint16_t addr, uint8_t code, uint8_t prefix) {
   // Replace LD (HL),(HL) with HALT
   if (code == 0x76) {
-    API::print_string("HALT");
+    print_pgm_string<API>(MNE_STR_HALT);
     return addr + 1;
   }
   const uint8_t dest = (code & 070) >> 3;
@@ -400,7 +416,8 @@ uint16_t decode_ld_reg_reg(uint16_t addr, uint8_t code, uint8_t prefix) {
   const bool has_dest_index = has_prefix && dest == REG_M;
   const bool has_src_index = has_prefix && src == REG_M;
   const bool has_index = has_dest_index || has_src_index;
-  API::print_string("LD ");
+  print_pgm_string<API>(MNE_STR_LD);
+  API::print_char(' ');
   // Print destination register
   if (has_dest_index) {
     print_index_ind<API>(addr + 1, prefix);
@@ -440,10 +457,11 @@ uint16_t decode_alu_a_reg(uint16_t addr, uint8_t code, uint8_t prefix) {
 // Decode conditional RET/JP/CALL
 template <typename API>
 uint16_t decode_jp_cond(uint16_t addr, uint8_t code) {
-  static constexpr const char* OPS[] = { "RET ", "JP ", "CALL " };
+  static constexpr const uint8_t OPS[] = { MNE_RET, MNE_JP, MNE_CALL };
   const uint8_t op = (code & 06) >> 1;
   const uint8_t cond = (code & 070) >> 3;
-  API::print_string(OPS[op]);
+  print_pgm_strtab<API>(MNE_STR, OPS[op]);
+  API::print_char(' ');
   print_token<API>(COND_TOK[cond]);
   if (op != 0) {
     API::print_char(',');
@@ -461,27 +479,33 @@ uint16_t decode_push_pop(uint16_t addr, uint8_t code, uint8_t prefix) {
   switch (code & 070) {
   case 010:
     if (is_push) {
-      API::print_string("CALL ");
+      print_pgm_string<API>(MNE_STR_CALL);
+      API::print_char(' ');
       print_imm_word<API>(addr + 1);
       return addr + 3;
     } else {
-      API::print_string("RET");
+      print_pgm_string<API>(MNE_STR_RET);
       return addr + 1;
     }
   case 030:
-    API::print_string("EXX");
+    print_pgm_string<API>(MNE_STR_EXX);
     return addr + 1;
   case 050:
-    API::print_string("JP (");
+    print_pgm_string<API>(MNE_STR_JP);
+    API::print_string(" (");
     print_pair<API>(PAIR_HL, prefix);
     API::print_char(')');
     return addr + 1;
   case 070:
-    API::print_string("LD SP,");
+    print_pgm_string<API>(MNE_STR_LD);
+    API::print_char(' ');
+    print_pgm_string<API>(TOK_STR_SP);
+    API::print_char(',');
     print_pair<API>(PAIR_HL, prefix);
     return addr + 1;
   default:
-    API::print_string(is_push ? "PUSH " : "POP ");
+    print_pgm_string<API>(is_push ? MNE_STR_PUSH : MNE_STR_POP);
+    API::print_char(' ');
     print_pair<API>((code & 060) >> 4, prefix, true);
     return addr + 1;
   }
@@ -492,36 +516,46 @@ uint16_t decode_misc_hi(uint16_t addr, uint8_t code, uint8_t prefix) {
   switch (code & 070) {
   case 000:
     // JP (nn)
-    API::print_string("JP ");
+    print_pgm_string<API>(MNE_STR_JP);
+    API::print_char(' ');
     print_imm_word<API>(addr + 1);
     return addr + 3;
   case 010:
     return decode_cb<API>(addr + 1, prefix);
   case 020:
     // OUT (n),A
-    API::print_string("OUT (");
+    print_pgm_string<API>(MNE_STR_OUT);
+    API::print_string(" (");
     print_imm_byte<API>(addr + 1);
     API::print_string("),A");
     return addr + 2;
   case 030:
     // IN A,(n)
-    API::print_string("IN A,(");
+    print_pgm_string<API>(MNE_STR_IN);
+    API::print_string(" A,(");
     print_imm_byte<API>(addr + 1);
     API::print_char(')');
     return addr + 2;
   case 040:
-    API::print_string("EX (SP),");
+    print_pgm_string<API>(MNE_STR_EX);
+    API::print_char(' ');
+    print_token<API>(TOK_SP + TOK_INDIRECT);
+    API::print_char(',');
     print_pair<API>(PAIR_HL, prefix);
     return addr + 1;
   case 050:
     // NOTE EX DE,HL unaffected by prefix
-    API::print_string("EX DE,HL");
+    print_pgm_string<API>(MNE_STR_EX);
+    API::print_char(' ');
+    print_pgm_string<API>(TOK_STR_DE);
+    API::print_char(',');
+    print_pgm_string<API>(TOK_STR_HL);
     return addr + 1;
   case 060:
-    API::print_string("DI");
+    print_pgm_string<API>(MNE_STR_DI);
     return addr + 1;
   default: // 070
-    API::print_string("EI");
+    print_pgm_string<API>(MNE_STR_EI);
     return addr + 1;
   }
 }
@@ -578,7 +612,8 @@ uint16_t decode_base(uint16_t addr, uint8_t prefix = 0) {
       print_imm_byte<API>(addr + 1);
       return addr + 2;
     case 7:
-      API::print_string("RST $");
+      print_pgm_string<API>(MNE_STR_RST);
+      API::print_string(" $");
       fmt_hex8(API::print_char, code & 070);
       return addr + 1;
     default: // 0, 1, 2, 4, 5
