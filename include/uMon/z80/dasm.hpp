@@ -222,7 +222,7 @@ uint8_t decode_cb(Instruction& inst, uint16_t addr, uint8_t prefix) {
       // (IX/IY) is still used, but result also copied to reg
       print_pgm_string<API>(MNE_STR_LD);
       API::print_char(' ');
-      print_token<API>(REG_TOK[reg]);
+      print_pgm_table<API>(TOK_STR, REG_TOK[reg]);
       API::print_char(';');
     }
     // Print (IX/IY+disp)

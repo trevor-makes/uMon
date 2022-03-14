@@ -167,6 +167,7 @@ enum {
 #define ITEM(name, token) REG_##name,
 REG_LIST
 #undef ITEM
+  REG_INVALID,
 };
 
 // Mapping from reg encoding to token
@@ -188,6 +189,7 @@ enum {
 #define ITEM(x) PAIR_##x,
 PAIR_LIST
 #undef ITEM
+  PAIR_INVALID,
 };
 
 // Mapping from pair encoding to token
@@ -210,6 +212,7 @@ enum {
 #define ITEM(x) COND_##x,
 COND_LIST
 #undef ITEM
+  COND_INVALID,
 };
 
 // Mapping from cond encoding to token
@@ -245,14 +248,6 @@ struct Instruction {
   Instruction(): mnemonic(MNE_INVALID) {}
 };
 
-template <typename API>
-void print_token(uint8_t token) {
-  const bool is_indirect = (token & TOK_INDIRECT) != 0;
-  if (is_indirect) API::print_char('(');
-  print_pgm_strtab<API>(TOK_STR, token & ~TOK_INDIRECT);
-  if (is_indirect) API::print_char(')');
-}
-
 // Nicely format an instruction operand
 template <typename API>
 void print_operand(Operand& op) {
@@ -262,7 +257,7 @@ void print_operand(Operand& op) {
   const uint8_t token = op.token & TOK_MASK;
   if (is_indirect) API::print_char('(');
   if (token < TOK_INVALID) {
-    print_pgm_strtab<API>(TOK_STR, token);
+    print_pgm_table<API>(TOK_STR, token);
     if (op.value != 0) {
       int8_t value = op.value;
       API::print_char(value < 0 ? '-' : '+');
@@ -292,7 +287,7 @@ void print_instruction(Instruction& inst) {
     API::print_char('?');
     return;
   }
-  print_pgm_strtab<API>(MNE_STR, inst.mnemonic);
+  print_pgm_table<API>(MNE_STR, inst.mnemonic);
   for (uint8_t i = 0; i < MAX_OPERANDS; ++i) {
     Operand& op = inst.operands[i];
     if (op.token == TOK_INVALID) break;

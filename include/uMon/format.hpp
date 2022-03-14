@@ -82,14 +82,14 @@ void print_pgm_string(const char* str) {
 
 // Print entry from PROGMEM string table
 template <typename API>
-void print_pgm_strtab(const char* const table[], uint8_t index) {
+void print_pgm_table(const char* const table[], uint8_t index) {
   char* str = (char*)pgm_read_ptr(table + index);
   print_pgm_string<API>(str);
 }
 
 // Find index of string in PROGMEM table
 template <uint8_t N>
-uint8_t find_pgm_strtab(const char* const (&table)[N], const char* str) {
+uint8_t index_of_pgm_string(const char* const (&table)[N], const char* str) {
   for (uint8_t i = 0; i < N; ++i) {
     if (strcasecmp_P(str, (char*)pgm_read_ptr(table + i)) == 0) {
       return i;

@@ -46,7 +46,7 @@ void parse_operand(uCLI::Tokens tokens, Operand& opr) {
     opr.token = TOK_INTEGER;
     opr.value = value;
   } else {
-    opr.token = find_pgm_strtab(TOK_STR, opr_str);
+    opr.token = index_of_pgm_string(TOK_STR, opr_str);
     uMON_FMT_ERROR(opr.token == TOK_INVALID, "arg", opr_str);
   }
 
@@ -62,7 +62,7 @@ void cmd_asm(uCLI::Args args) {
   // Parse mnemonic
   Instruction inst;
   const char* mnemonic = args.next();
-  inst.mnemonic = find_pgm_strtab(MNE_STR, mnemonic);
+  inst.mnemonic = index_of_pgm_string(MNE_STR, mnemonic);
   uMON_FMT_ERROR(inst.mnemonic == MNE_INVALID, "op", mnemonic);
 
   // Parse operands
