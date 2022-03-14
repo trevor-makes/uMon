@@ -130,6 +130,9 @@ enum {
 #undef ITEM
   TOK_INVALID,
   TOK_INTEGER,
+  TOK_MASK = 0x1F,
+  TOK_BYTE = 0x20,
+  TOK_DIGIT = 0x40,
   TOK_INDIRECT = 0x80,
 };
 
@@ -215,13 +218,16 @@ COND_LIST
 // Token Functions
 // ============================================================================
 
+// Data fields common to all operand types
 struct Operand {
   uint8_t token;
   uint16_t value;
 };
 
+// Maximum number of operands encoded by an instruction
 constexpr const uint8_t MAX_OPERANDS = 2;
 
+// Data fields common to all instruction types
 struct Instruction {
   uint8_t mnemonic;
   Operand operands[MAX_OPERANDS];
@@ -235,10 +241,13 @@ void print_token(uint8_t token) {
   if (is_indirect) API::print_char(')');
 }
 
+// Nicely format an instruction operand
 template <typename API>
 void print_operand(Operand& op) {
   const bool is_indirect = (op.token & TOK_INDIRECT) != 0;
-  const uint8_t token = op.token & ~TOK_INDIRECT;
+  const bool is_byte = (op.token & TOK_BYTE) != 0;
+  const bool is_digit = (op.token & TOK_DIGIT) != 0;
+  const uint8_t token = op.token & TOK_MASK;
   if (is_indirect) API::print_char('(');
   if (token < TOK_INVALID) {
     print_pgm_strtab<API>(TOK_STR, token);
@@ -249,18 +258,26 @@ void print_operand(Operand& op) {
       fmt_hex8(API::print_char, value < 0 ? -value : value);
     }
   } else if (token == TOK_INTEGER) {
-    API::print_char('$');
-    fmt_hex16(API::print_char, op.value);
+    if (is_digit) {
+      API::print_char('0' + op.value);
+    } else if (is_byte) {
+      API::print_char('$');
+      fmt_hex8(API::print_char, op.value);
+    } else {
+      API::print_char('$');
+      fmt_hex16(API::print_char, op.value);
+    }
   } else {
     API::print_char('?');
   }
   if (is_indirect) API::print_char(')');
 }
 
+// Nicely format an instruction and its operands
 template <typename API>
 void print_instruction(Instruction& inst) {
   print_pgm_strtab<API>(MNE_STR, inst.mnemonic);
-  for (uint8_t i = 0; i < MAX_OPERANDS; ++i) { // TODO magic number
+  for (uint8_t i = 0; i < MAX_OPERANDS; ++i) {
     Operand& op = inst.operands[i];
     if (op.token == TOK_INVALID) break;
     API::print_char(i == 0 ? ' ' : ',');
