@@ -55,18 +55,18 @@ Operand read_disp(uint16_t addr) {
 // Encode (IX/IY+disp) given address of displacement byte
 template <typename API>
 Operand read_index_ind(uint16_t addr, uint8_t prefix) {
-  uint8_t token = (prefix == 0xDD ? TOK_IX : TOK_IY) | TOK_INDIRECT;
+  uint8_t token = (prefix == PREFIX_IX ? TOK_IX : TOK_IY) | TOK_INDIRECT;
   uint16_t value = int8_t(API::read_byte(addr));
   return { token, value };
 }
 
 // Translate reg to token, optionally with IX/IY prefix, or (HL)
-// (IX/IY+disp) should be handled with print_index_ind instead
+// (IX/IY+disp) should be handled with read_index_ind instead
 uint8_t decode_reg(uint8_t reg, uint8_t prefix) {
   if (prefix != 0 && reg == REG_H) {
-    return prefix == 0xDD ? TOK_IXH : TOK_IYH;
+    return prefix == PREFIX_IX ? TOK_IXH : TOK_IYH;
   } else if (prefix != 0 && reg == REG_L) {
-    return prefix == 0xDD ? TOK_IXL : TOK_IYL;
+    return prefix == PREFIX_IX ? TOK_IXL : TOK_IYL;
   }
   return REG_TOK[reg];
 }
@@ -75,7 +75,7 @@ uint8_t decode_reg(uint8_t reg, uint8_t prefix) {
 uint8_t decode_pair(uint8_t pair, uint8_t prefix, bool use_af = false) {
   const bool has_prefix = prefix != 0;
   if (has_prefix && pair == PAIR_HL) {
-    return prefix == 0xDD ? TOK_IX : TOK_IY;
+    return prefix == PREFIX_IX ? TOK_IX : TOK_IY;
   } else if (use_af && pair == PAIR_SP) {
     return TOK_AF;
   }
@@ -87,10 +87,11 @@ template <typename API>
 uint8_t decode_in_out_c(Instruction& inst, uint8_t code) {
   const bool is_out = (code & 01) == 01;
   const uint8_t reg = (code & 070) >> 3;
+  const bool is_ind = reg == REG_M;
   inst.mnemonic = is_out ? MNE_OUT : MNE_IN;
   inst.operands[is_out ? 0 : 1].token = TOK_C | TOK_INDIRECT;
   // NOTE reg (HL) is undefined; OUT sends 0 and IN sets flags without storing
-  inst.operands[is_out ? 1 : 0].token = reg == REG_M ? TOK_UNDEFINED : REG_TOK[reg];
+  inst.operands[is_out ? 1 : 0].token = is_ind ? TOK_UNDEFINED : REG_TOK[reg];
   return 1;
 }
 
@@ -139,7 +140,7 @@ uint8_t decode_ld_ir(Instruction& inst, uint8_t code) {
   const bool is_rl = (code & 010) == 010; // is LD -R- or RLD
   if (is_rot) {
     if (is_load) {
-      print_error<API>(0xED, code);
+      print_error<API>(PREFIX_ED, code);
     } else {
       inst.mnemonic = is_rl ? MNE_RLD : MNE_RRD;
     }
@@ -179,12 +180,12 @@ uint8_t decode_ed(Instruction& inst, uint16_t addr) {
     case 3:
       return decode_ld_pair_ind<API>(inst, addr, code);
     case 4:
-      // NOTE only 0104/0x44 is documented, but the 2nd octal digit is ignored
+      // NOTE all 1-4 codes do NEG, but only 104 is documented
       inst.mnemonic = MNE_NEG;
       return 1;
     case 5:
-      // NOTE only 0x45 RETN is documented
-      inst.mnemonic = code == 0x4D ? MNE_RETI : MNE_RETN;
+      // NOTE all 1-5 codes (except 115 RETI) do RETN, but only 105 is documented
+      inst.mnemonic = code == 0115 ? MNE_RETI : MNE_RETN;
       return 1;
     case 6:
       return decode_im<API>(inst, code);
@@ -194,7 +195,7 @@ uint8_t decode_ed(Instruction& inst, uint16_t addr) {
   } else if ((code & 0344) == 0240) {
     return decode_block_ops<API>(inst, code);
   }
-  print_error<API>(0xED, code);
+  print_error<API>(PREFIX_ED, code);
   return 1;
 }
 
@@ -394,7 +395,7 @@ uint8_t decode_alu_a_reg(Instruction& inst, uint16_t addr, uint8_t code, uint8_t
   }
 }
 
-// Decode conditional RET/JP/CALL
+// Decode conditional RET/JP/CALL: [11 --- 000/010/100]
 template <typename API>
 uint8_t decode_jp_cond(Instruction& inst, uint16_t addr, uint8_t code) {
   static constexpr const uint8_t OPS[] = { MNE_RET, MNE_JP, MNE_CALL };
@@ -410,7 +411,7 @@ uint8_t decode_jp_cond(Instruction& inst, uint16_t addr, uint8_t code) {
   }
 }
 
-// Decode PUSH/POP/CALL/RET and misc
+// Decode PUSH/POP/CALL/RET and misc: [11 --- -01]
 template <typename API>
 uint8_t decode_push_pop(Instruction& inst, uint16_t addr, uint8_t code, uint8_t prefix) {
   const bool is_push = (code & 04) == 04;
@@ -436,13 +437,14 @@ uint8_t decode_push_pop(Instruction& inst, uint16_t addr, uint8_t code, uint8_t 
     inst.operands[0].token = TOK_SP;
     inst.operands[1].token = decode_pair(PAIR_HL, prefix);
     return 1;
-  default:
+  default: // 000, 020, 040, 060
     inst.mnemonic = is_push ? MNE_PUSH : MNE_POP;
     inst.operands[0].token = decode_pair((code & 060) >> 4, prefix, true);
     return 1;
   }
 }
 
+// Decode misc ops with pattern [11 --- 011]
 template <typename API>
 uint8_t decode_misc_hi(Instruction& inst, uint16_t addr, uint8_t code, uint8_t prefix) {
   switch (code & 070) {
@@ -483,18 +485,19 @@ uint8_t decode_misc_hi(Instruction& inst, uint16_t addr, uint8_t code, uint8_t p
   }
 }
 
+// Decode instruction at address, returning bytes read
 template <typename API>
 uint8_t decode_base(Instruction& inst, uint16_t addr, uint8_t prefix = 0) {
   uint8_t code = API::read_byte(addr);
   // Handle prefix codes
-  if (code == 0xDD || code == 0xED || code == 0xFD) {
+  if (code == PREFIX_IX || code == PREFIX_ED || code == PREFIX_IY) {
     if (prefix != 0) {
       // Discard old prefix and start over
       print_error<API>(prefix, code);
       return 0;
     } else {
       // Add 1 to size for prefix
-      if (code == 0xED) {
+      if (code == PREFIX_ED) {
         return 1 + decode_ed<API>(inst, addr + 1);
       } else {
         return 1 + decode_base<API>(inst, addr + 1, code);

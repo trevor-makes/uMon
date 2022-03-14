@@ -6,6 +6,10 @@
 namespace uMon {
 namespace z80 {
 
+constexpr const uint8_t PREFIX_IX = 0xDD;
+constexpr const uint8_t PREFIX_IY = 0xFD;
+constexpr const uint8_t PREFIX_ED = 0xED;
+
 // ============================================================================
 // Mnemonic Definitions
 // ============================================================================
