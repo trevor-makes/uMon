@@ -125,6 +125,7 @@ MISC_LIST
 
 // Alphabetic index of all registers, pairs, and conditions
 enum {
+  TOK_UNDEFINED,
 #define ITEM(x) TOK_##x,
 #include "tokens.def"
 #undef ITEM
@@ -137,12 +138,14 @@ enum {
 };
 
 // Individual token strings in Flash memory
+const char TOK_STR_UNDEFINED[] PROGMEM = "?";
 #define ITEM(x) const char TOK_STR_##x[] PROGMEM = #x;
 #include "tokens.def"
 #undef ITEM
 
 // Flash memory table of token strings
 const char* const TOK_STR[] PROGMEM = {
+  TOK_STR_UNDEFINED,
 #define ITEM(x) TOK_STR_##x,
 #include "tokens.def"
 #undef ITEM

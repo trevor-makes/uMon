@@ -84,19 +84,19 @@ uint8_t decode_pair(uint8_t pair, uint8_t prefix, bool use_af = false) {
 
 // Decode IN/OUT (c): ED [01 --- 00-]
 template <typename API>
-uint8_t decode_in_out_c(Instruction& inst, uint16_t addr, uint8_t code) {
+uint8_t decode_in_out_c(Instruction& inst, uint8_t code) {
   const bool is_out = (code & 01) == 01;
   const uint8_t reg = (code & 070) >> 3;
   inst.mnemonic = is_out ? MNE_OUT : MNE_IN;
   inst.operands[is_out ? 0 : 1].token = TOK_C | TOK_INDIRECT;
   // NOTE reg (HL) is undefined; OUT sends 0 and IN sets flags without storing
-  inst.operands[is_out ? 1 : 0].token = reg == REG_M ? TOK_Z : REG_TOK[reg]; // TODO add "undefined" token
+  inst.operands[is_out ? 1 : 0].token = reg == REG_M ? TOK_UNDEFINED : REG_TOK[reg];
   return 1;
 }
 
 // Decode 16-bit ADC/SBC: ED [01 --- 010]
 template <typename API>
-uint8_t decode_hl_adc(Instruction& inst, uint16_t addr, uint8_t code) {
+uint8_t decode_hl_adc(Instruction& inst, uint8_t code) {
   const bool is_adc = (code & 010) == 010;
   const uint8_t pair = (code & 060) >> 4;
   inst.mnemonic = is_adc ? MNE_ADC : MNE_SBC;
@@ -116,9 +116,24 @@ uint8_t decode_ld_pair_ind(Instruction& inst, uint16_t addr, uint8_t code) {
   return 3;
 }
 
+// Decode IM 0/1/2: ED [01 --- 110]
+template <typename API>
+uint8_t decode_im(Instruction& inst, uint8_t code) {
+  inst.mnemonic = MNE_IM;
+  // NOTE only 0x46, 0x56, 0x5E are documented; '?' sets an undefined mode
+  const uint8_t mode = (code & 030) >> 3;
+  if (mode == 1) {
+    inst.operands[0].token = TOK_UNDEFINED;
+  } else {
+    inst.operands[0].token = TOK_INTEGER | TOK_DIGIT;
+    inst.operands[0].value = mode > 0 ? mode - 1 : mode;
+  }
+  return 1;
+}
+
 // Decode LD I/R and RRD/RLD: ED [01 --- 111]
 template <typename API>
-uint8_t decode_ld_ir(Instruction& inst, uint16_t addr, uint8_t code) {
+uint8_t decode_ld_ir(Instruction& inst, uint8_t code) {
   const bool is_rot = (code & 040) == 040; // is RRD/RLD
   const bool is_load = (code & 020) == 020; // is LD A,I/R
   const bool is_rl = (code & 010) == 010; // is LD -R- or RLD
@@ -138,7 +153,7 @@ uint8_t decode_ld_ir(Instruction& inst, uint16_t addr, uint8_t code) {
 
 // Decode block transfer ops: ED [10 1-- 0--]
 template <typename API>
-uint8_t decode_block_ops(Instruction& inst, uint16_t addr, uint8_t code) {
+uint8_t decode_block_ops(Instruction& inst, uint8_t code) {
   static constexpr const uint8_t OPS[4][4] = {
     { MNE_LDI, MNE_LDD, MNE_LDIR, MNE_LDDR },
     { MNE_CPI, MNE_CPD, MNE_CPIR, MNE_CPDR },
@@ -158,9 +173,9 @@ uint8_t decode_ed(Instruction& inst, uint16_t addr) {
   if ((code & 0300) == 0100) {
     switch (code & 07) {
     case 0: case 1:
-      return decode_in_out_c<API>(inst, addr, code);
+      return decode_in_out_c<API>(inst, code);
     case 2:
-      return decode_hl_adc<API>(inst, addr, code);
+      return decode_hl_adc<API>(inst, code);
     case 3:
       return decode_ld_pair_ind<API>(inst, addr, code);
     case 4:
@@ -172,17 +187,12 @@ uint8_t decode_ed(Instruction& inst, uint16_t addr) {
       inst.mnemonic = code == 0x4D ? MNE_RETI : MNE_RETN;
       return 1;
     case 6:
-      // NOTE only 0x46, 0x56, 0x5E are documented; '?' sets an undefined mode
-      inst.mnemonic = MNE_IM;
-      static constexpr const uint8_t IM[] = { 0, '?' - '0', 1, 2 }; // TODO add "undefined" token
-      inst.operands[0].token = TOK_INTEGER | TOK_DIGIT;
-      inst.operands[0].value = IM[(code & 030) >> 3];
-      return 1;
+      return decode_im<API>(inst, code);
     case 7:
-      return decode_ld_ir<API>(inst, addr, code);
+      return decode_ld_ir<API>(inst, code);
     }
   } else if ((code & 0344) == 0240) {
-    return decode_block_ops<API>(inst, addr, code);
+    return decode_block_ops<API>(inst, code);
   }
   print_error<API>(0xED, code);
   return 1;
