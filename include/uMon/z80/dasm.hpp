@@ -16,7 +16,7 @@ namespace z80 {
 
 // Print given code as hex followed by '?'
 template <typename API>
-void print_error(uint8_t prefix, uint8_t code) {
+void print_prefix_error(uint8_t prefix, uint8_t code) {
   API::print_char('$');
   fmt_hex8(API::print_char, prefix);
   fmt_hex8(API::print_char, code);
@@ -140,7 +140,7 @@ uint8_t decode_ld_ir(Instruction& inst, uint8_t code) {
   const bool is_rl = (code & 010) == 010; // is LD -R- or RLD
   if (is_rot) {
     if (is_load) {
-      print_error<API>(PREFIX_ED, code);
+      print_prefix_error<API>(PREFIX_ED, code);
     } else {
       inst.mnemonic = is_rl ? MNE_RLD : MNE_RRD;
     }
@@ -195,7 +195,7 @@ uint8_t decode_ed(Instruction& inst, uint16_t addr) {
   } else if ((code & 0344) == 0240) {
     return decode_block_ops<API>(inst, code);
   }
-  print_error<API>(PREFIX_ED, code);
+  print_prefix_error<API>(PREFIX_ED, code);
   return 1;
 }
 
@@ -493,7 +493,7 @@ uint8_t decode_base(Instruction& inst, uint16_t addr, uint8_t prefix = 0) {
   if (code == PREFIX_IX || code == PREFIX_ED || code == PREFIX_IY) {
     if (prefix != 0) {
       // Discard old prefix and start over
-      print_error<API>(prefix, code);
+      print_prefix_error<API>(prefix, code);
       return 0;
     } else {
       // Add 1 to size for prefix

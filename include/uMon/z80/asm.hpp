@@ -12,6 +12,12 @@
 namespace uMon {
 namespace z80 {
 
+template <typename API>
+void print_operand_error(Operand& op) {
+  print_operand<API>(op);
+  API::print_string("?\n");
+}
+
 template <typename T, uint8_t N>
 uint8_t index_of(const T (&table)[N], T value) {
   for (uint8_t i = 0; i < N; ++i) {
@@ -24,21 +30,31 @@ uint8_t index_of(const T (&table)[N], T value) {
 
 uint8_t token_to_reg(uint8_t token, uint8_t prefix = 0) {
   if (prefix == PREFIX_IX) {
-    if (token == TOK_IXH) return REG_H;
-    if (token == TOK_IXL) return REG_L;
-    if (token == (TOK_IX | TOK_INDIRECT)) return REG_M;
-  }
-  if (prefix == PREFIX_IY) {
-    if (token == TOK_IYH) return REG_H;
-    if (token == TOK_IYL) return REG_L;
-    if (token == (TOK_IY | TOK_INDIRECT)) return REG_M;
+    switch (token) {
+    case TOK_IXH: return REG_H;
+    case TOK_IXL: return REG_L;
+    case TOK_IX | TOK_INDIRECT: return REG_M;
+    case TOK_H: case TOK_L: return REG_INVALID;
+    }
+  } else if (prefix == PREFIX_IY) {
+    switch (token) {
+    case TOK_IYH: return REG_H;
+    case TOK_IYL: return REG_L;
+    case TOK_IY | TOK_INDIRECT: return REG_M;
+    case TOK_H: case TOK_L: return REG_INVALID;
+    }
   }
   return index_of(REG_TOK, token);
 }
 
 uint8_t token_to_pair(uint8_t token, uint8_t prefix = 0, bool use_af = false) {
-  if (prefix == PREFIX_IX && token == TOK_IX) return PAIR_HL;
-  if (prefix == PREFIX_IY && token == TOK_IY) return PAIR_HL;
+  if (prefix == PREFIX_IX) {
+    if (token == TOK_IX) return PAIR_HL;
+    if (token == TOK_HL) return PAIR_INVALID;
+  } else if (prefix == PREFIX_IY) {
+    if (token == TOK_IY) return PAIR_HL;
+    if (token == TOK_HL) return PAIR_INVALID;
+  }
   if (use_af) {
     if (token == TOK_AF) return PAIR_SP;
     if (token == TOK_SP) return PAIR_INVALID;
@@ -51,7 +67,7 @@ uint8_t token_to_cond(uint8_t token) {
 }
 
 uint8_t token_to_prefix(uint8_t token) {
-  switch (token) {
+  switch (token & TOK_MASK) {
   case TOK_IX: case TOK_IXH: case TOK_IXL:
     return PREFIX_IX;
   case TOK_IY: case TOK_IYH: case TOK_IYL:
@@ -62,10 +78,89 @@ uint8_t token_to_prefix(uint8_t token) {
 }
 
 template <typename API>
+uint8_t encode_alu_a(uint16_t addr, uint8_t mne, Operand& src) {
+  uint8_t alu = index_of(ALU_MNE, mne);
+  if (src.token == TOK_INTEGER) {
+    API::write_byte(addr, 0306 | (alu << 3));
+    API::write_byte(addr + 1, src.value);
+    return 2;
+  } else {
+    // Validate source operand is register
+    uint8_t prefix = token_to_prefix(src.token);
+    uint8_t reg = token_to_reg(src.token, prefix);
+    uint8_t code = 0200 | (alu << 3) | reg;
+    if (reg == REG_INVALID) {
+      print_operand_error<API>(src);
+      return 0;
+    } else if (prefix != 0) {
+      // Write [prefix, code, displacement]
+      API::write_byte(addr, prefix);
+      API::write_byte(addr + 1, code);
+      API::write_byte(addr + 2, src.value);
+      return 3;
+    } else {
+      API::write_byte(addr, code);
+      return 1;
+    }
+  }
+}
+
+template <typename API>
+uint8_t encode_alu_hl(uint16_t addr, uint8_t mne, Operand& dst, Operand& src) {
+  // Validate dst operand is HL/IX/IY pair
+  uint8_t prefix = token_to_prefix(dst.token);
+  if (token_to_pair(dst.token, prefix) != PAIR_HL) {
+    print_operand_error<API>(dst);
+    return 0;
+  }
+  // Make sure src and dst prefixes match (can't mix HL/IX/IY)
+  uint8_t src_prefix = token_to_prefix(src.token);
+  if (src_prefix != 0 && src_prefix != prefix) {
+    print_operand_error<API>(src);
+    return 0;
+  }
+  // Validate src operand is pair
+  uint8_t src_pair = token_to_pair(src.token, prefix);
+  if (src_pair == PAIR_INVALID) {
+    print_operand_error<API>(src);
+    return 0;
+  }
+  // Handle ADD, ADC, SBC
+  if (mne == MNE_ADD) {
+    if (prefix != 0) API::write_byte(addr++, prefix);
+    API::write_byte(addr, 0011 | (src_pair << 4));
+    return prefix != 0 ? 2 : 1;
+  } else if (prefix == 0 && (mne == MNE_ADC || mne == MNE_SBC)) {
+    uint8_t code = mne == MNE_ADC ? 0112 : 0102;
+    API::write_byte(addr, PREFIX_ED);
+    API::write_byte(addr + 1, code | (src_pair << 4));
+    return 2;
+  } else {
+    print_operand_error<API>(dst);
+    return 0;
+  }
+}
+
+template <typename API>
 uint8_t impl_asm(uint16_t addr, Instruction inst) {
   Operand& op1 = inst.operands[0];
   Operand& op2 = inst.operands[1];
   switch (inst.mnemonic) {
+  case MNE_ADC:
+  case MNE_ADD:
+  case MNE_AND:
+  case MNE_CP:
+  case MNE_OR:
+  case MNE_SBC:
+  case MNE_SUB:
+  case MNE_XOR:
+    if (op2.token == TOK_INVALID) {
+      return encode_alu_a<API>(addr, inst.mnemonic, op1);
+    } else if (op1.token == TOK_A) {
+      return encode_alu_a<API>(addr, inst.mnemonic, op2);
+    } else {
+      return encode_alu_hl<API>(addr, inst.mnemonic, op1, op2);
+    }
   case MNE_CCF:
     API::write_byte(addr, 0x3F);
     return 1;
