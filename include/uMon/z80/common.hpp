@@ -222,6 +222,9 @@ COND_LIST
 struct Operand {
   uint8_t token;
   uint16_t value;
+
+  Operand(): token(TOK_INVALID), value(0) {}
+  Operand(uint8_t token, uint16_t value): token(token), value(value) {}
 };
 
 // Maximum number of operands encoded by an instruction
@@ -231,6 +234,8 @@ constexpr const uint8_t MAX_OPERANDS = 2;
 struct Instruction {
   uint8_t mnemonic;
   Operand operands[MAX_OPERANDS];
+
+  Instruction(): mnemonic(MNE_INVALID) {}
 };
 
 template <typename API>
@@ -276,6 +281,10 @@ void print_operand(Operand& op) {
 // Nicely format an instruction and its operands
 template <typename API>
 void print_instruction(Instruction& inst) {
+  if (inst.mnemonic == MNE_INVALID) {
+    API::print_char('?');
+    return;
+  }
   print_pgm_strtab<API>(MNE_STR, inst.mnemonic);
   for (uint8_t i = 0; i < MAX_OPERANDS; ++i) {
     Operand& op = inst.operands[i];

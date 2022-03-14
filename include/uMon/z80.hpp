@@ -12,9 +12,6 @@ namespace z80 {
 
 template <typename API>
 void parse_operand(uCLI::Tokens tokens, Operand& opr) {
-  opr.token = TOK_INVALID;
-  opr.value = 0;
-
   // Handle indirect operand surronded by parentheses
   bool is_indirect = false;
   if (tokens.peek_char() == '(') {
@@ -70,7 +67,6 @@ void cmd_asm(uCLI::Args args) {
 
   // Parse operands
   for (Operand& op : inst.operands) {
-    op.token = TOK_INVALID;
     if (!args.has_next()) break;
     parse_operand<API>(args.split_at(','), op);
     if (op.token == TOK_INVALID) return;
