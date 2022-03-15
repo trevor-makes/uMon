@@ -168,6 +168,32 @@ uint8_t encode_bit(uint16_t addr, uint8_t mne, Operand& op1, Operand& op2) {
 }
 
 template <typename API>
+uint8_t encode_call_jp(uint16_t addr, uint8_t mne, Operand& op1, Operand& op2) {
+  uint8_t code, lsb, msb;
+  if (op2.token == TOK_INTEGER) {
+    uint8_t cond = token_to_cond(op1.token);
+    if (cond == COND_INVALID) {
+      print_operand_error<API>(op1);
+      return 0;
+    }
+    code = (mne == MNE_CALL ? 0304 : 0302) | (cond << 3);
+    lsb = op2.value & 0xFF;
+    msb = op2.value >> 8;
+  } else if (op1.token == TOK_INTEGER && op2.token == TOK_INVALID) {
+    code = mne == MNE_CALL ? 0315 : 0303;
+    lsb = op1.value & 0xFF;
+    msb = op1.value >> 8;
+  } else {
+    print_operand_error<API>(op1);
+    return 0;
+  }
+  API::write_byte(addr, code);
+  API::write_byte(addr + 1, lsb);
+  API::write_byte(addr + 2, msb);
+  return 3;
+}
+
+template <typename API>
 uint8_t encode_inc(uint16_t addr, uint8_t mne, Operand& op) {
   bool is_inc = mne == MNE_INC;
   uint8_t prefix = token_to_prefix(op.token);
@@ -238,6 +264,8 @@ uint8_t impl_asm(uint16_t addr, Instruction inst) {
     }
   case MNE_BIT: case MNE_RES: case MNE_SET:
     return encode_bit<API>(addr, inst.mnemonic, op1, op2);
+  case MNE_CALL: case MNE_JP:
+    return encode_call_jp<API>(addr, inst.mnemonic, op1, op2);
   case MNE_CCF:
     API::write_byte(addr, 0x3F);
     return 1;
