@@ -18,6 +18,13 @@ void print_operand_error(Operand& op) {
   API::print_string("?\n");
 }
 
+template <typename API>
+void write_op_word(uint16_t addr, uint8_t code, uint16_t value) {
+  API::write_byte(addr, code);
+  API::write_byte(addr + 1, value & 0xFF);
+  API::write_byte(addr + 2, value >> 8);
+}
+
 template <typename T, uint8_t N>
 uint8_t index_of(const T (&table)[N], T value) {
   for (uint8_t i = 0; i < N; ++i) {
@@ -192,28 +199,30 @@ uint8_t encode_bit(uint16_t addr, uint8_t mne, Operand& op1, Operand& op2) {
 
 template <typename API>
 uint8_t encode_call_jp(uint16_t addr, bool is_call, Operand& op1, Operand& op2) {
-  uint8_t code, lsb, msb;
   if (op2.token == TOK_INTEGER) {
     uint8_t cond = token_to_cond(op1.token);
-    if (cond == COND_INVALID) {
-      print_operand_error<API>(op1);
-      return 0;
+    if (cond != COND_INVALID) {
+      uint8_t code = (is_call ? 0304 : 0302) | (cond << 3);
+      write_op_word<API>(addr, code, op2.value);
+      return 3;
     }
-    code = (is_call ? 0304 : 0302) | (cond << 3);
-    lsb = op2.value & 0xFF;
-    msb = op2.value >> 8;
-  } else if (op1.token == TOK_INTEGER && op2.token == TOK_INVALID) {
-    code = is_call ? 0315 : 0303;
-    lsb = op1.value & 0xFF;
-    msb = op1.value >> 8;
-  } else {
-    print_operand_error<API>(op1);
-    return 0;
+  } else if (op2.token == TOK_INVALID) {
+    if (op1.token == TOK_INTEGER) {
+      uint8_t code = is_call ? 0315 : 0303;
+      write_op_word<API>(addr, code, op1.value);
+      return 3;
+    } else if (!is_call) { // JP only
+      uint8_t prefix = token_to_prefix(op1.token);
+      uint8_t reg = token_to_reg(op1.token, prefix);
+      if (reg == REG_M) {
+        if (prefix != 0) API::write_byte(addr++, prefix);
+        API::write_byte(addr, 0xE9); // JP (HL)
+        return prefix != 0 ? 2 : 1;
+      }
+    }
   }
-  API::write_byte(addr, code);
-  API::write_byte(addr + 1, lsb);
-  API::write_byte(addr + 2, msb);
-  return 3;
+  print_operand_error<API>(op1);
+  return 0;
 }
 
 template <typename API>
