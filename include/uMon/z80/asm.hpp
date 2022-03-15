@@ -29,22 +29,11 @@ uint8_t index_of(const T (&table)[N], T value) {
 }
 
 uint8_t token_to_reg(uint8_t token, uint8_t prefix = 0) {
-  if (prefix == PREFIX_IX) {
-    switch (token) {
-    case TOK_IXH: return REG_H;
-    case TOK_IXL: return REG_L;
-    case TOK_IX | TOK_INDIRECT: return REG_M;
-    case TOK_H: case TOK_L: return REG_INVALID;
-    }
-  } else if (prefix == PREFIX_IY) {
-    switch (token) {
-    case TOK_IYH: return REG_H;
-    case TOK_IYL: return REG_L;
-    case TOK_IY | TOK_INDIRECT: return REG_M;
-    case TOK_H: case TOK_L: return REG_INVALID;
-    }
+  switch (prefix) {
+  case PREFIX_IX: return index_of(REG_TOK_IX, token);
+  case PREFIX_IY: return index_of(REG_TOK_IY, token);
+  default: return index_of(REG_TOK, token);
   }
-  return index_of(REG_TOK, token);
 }
 
 uint8_t token_to_pair(uint8_t token, uint8_t prefix = 0, bool use_af = false) {

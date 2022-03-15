@@ -161,11 +161,17 @@ const char* const TOK_STR[] PROGMEM = {
 // ============================================================================
 
 #define REG_LIST \
-ITEM(B, TOK_B) ITEM(C, TOK_C) ITEM(D, TOK_D) ITEM(E, TOK_E) ITEM(H, TOK_H) \
-ITEM(L, TOK_L) ITEM(M, TOK_INDIRECT | TOK_HL) ITEM(A, TOK_A)
+ITEM(B, TOK_B, TOK_B, TOK_B) \
+ITEM(C, TOK_C, TOK_C, TOK_C) \
+ITEM(D, TOK_D, TOK_D, TOK_D) \
+ITEM(E, TOK_E, TOK_E, TOK_E) \
+ITEM(H, TOK_H, TOK_IXH, TOK_IYH) \
+ITEM(L, TOK_L, TOK_IXL, TOK_IYL) \
+ITEM(M, TOK_INDIRECT | TOK_HL, TOK_INDIRECT | TOK_IX, TOK_INDIRECT | TOK_IY) \
+ITEM(A, TOK_A, TOK_A, TOK_A)
 
 enum {
-#define ITEM(name, token) REG_##name,
+#define ITEM(name, tok, tok_ix, tok_iy) REG_##name,
 REG_LIST
 #undef ITEM
   REG_INVALID,
@@ -173,7 +179,21 @@ REG_LIST
 
 // Mapping from reg encoding to token
 const uint8_t REG_TOK[] = {
-#define ITEM(name, token) token,
+#define ITEM(name, tok, tok_ix, tok_iy) tok,
+REG_LIST
+#undef ITEM
+};
+
+// Mapping from reg encoding to token with IX prefix
+const uint8_t REG_TOK_IX[] = {
+#define ITEM(name, tok, tok_ix, tok_iy) tok_ix,
+REG_LIST
+#undef ITEM
+};
+
+// Mapping from reg encoding to token with IY prefix
+const uint8_t REG_TOK_IY[] = {
+#define ITEM(name, tok, tok_ix, tok_iy) tok_iy,
 REG_LIST
 #undef ITEM
 };
