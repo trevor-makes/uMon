@@ -9,6 +9,7 @@ namespace z80 {
 constexpr const uint8_t PREFIX_IX = 0xDD;
 constexpr const uint8_t PREFIX_IY = 0xFD;
 constexpr const uint8_t PREFIX_ED = 0xED;
+constexpr const uint8_t PREFIX_CB = 0xCB;
 
 // ============================================================================
 // Mnemonic Definitions

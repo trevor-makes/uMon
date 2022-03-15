@@ -79,6 +79,7 @@ uint8_t token_to_prefix(uint8_t token) {
 
 template <typename API>
 uint8_t encode_alu_a(uint16_t addr, uint8_t mne, Operand& src) {
+  // NOTE mne assumed to be valid
   uint8_t alu = index_of(ALU_MNE, mne);
   if (src.token == TOK_INTEGER) {
     API::write_byte(addr, 0306 | (alu << 3));
@@ -141,6 +142,38 @@ uint8_t encode_alu_hl(uint16_t addr, uint8_t mne, Operand& dst, Operand& src) {
   }
 }
 
+// Encode CB-prefix BIT, RES, and SET ops
+template <typename API>
+uint8_t encode_bit(uint16_t addr, uint8_t mne, Operand& op1, Operand& op2) {
+  // Validate bit index
+  if (op1.token != TOK_INTEGER || op1.value > 7) {
+    print_operand_error<API>(op1);
+    return 0;
+  }
+  uint8_t bit = op1.value << 3;
+  // Validate register
+  uint8_t prefix = token_to_prefix(op2.token);
+  uint8_t reg = token_to_reg(op2.token, prefix);
+  if (reg == REG_INVALID || (prefix != 0 && reg != REG_M)) {
+    print_operand_error<API>(op2);
+    return 0;
+  }
+  // NOTE mne assumed to be valid
+  uint8_t op = index_of(CB_MNE, mne) << 6;
+  uint8_t code = op | bit | reg;
+  if (prefix != 0) {
+    API::write_byte(addr, prefix);
+    API::write_byte(addr + 1, PREFIX_CB);
+    API::write_byte(addr + 2, op2.value);
+    API::write_byte(addr + 3, code);
+    return 4;
+  } else {
+    API::write_byte(addr, PREFIX_CB);
+    API::write_byte(addr + 1, code);
+    return 2;
+  }
+}
+
 template <typename API>
 uint8_t encode_ex(uint16_t addr, Operand& op1, Operand& op2) {
   if (op1.token == (TOK_SP | TOK_INDIRECT)) {
@@ -169,14 +202,8 @@ uint8_t impl_asm(uint16_t addr, Instruction inst) {
   Operand& op1 = inst.operands[0];
   Operand& op2 = inst.operands[1];
   switch (inst.mnemonic) {
-  case MNE_ADC:
-  case MNE_ADD:
-  case MNE_AND:
-  case MNE_CP:
-  case MNE_OR:
-  case MNE_SBC:
-  case MNE_SUB:
-  case MNE_XOR:
+  case MNE_ADC: case MNE_ADD: case MNE_SBC: case MNE_SUB:
+  case MNE_AND: case MNE_CP:  case MNE_OR:  case MNE_XOR:
     if (op2.token == TOK_INVALID) {
       return encode_alu_a<API>(addr, inst.mnemonic, op1);
     } else if (op1.token == TOK_A) {
@@ -184,6 +211,8 @@ uint8_t impl_asm(uint16_t addr, Instruction inst) {
     } else {
       return encode_alu_hl<API>(addr, inst.mnemonic, op1, op2);
     }
+  case MNE_BIT: case MNE_RES: case MNE_SET:
+    return encode_bit<API>(addr, inst.mnemonic, op1, op2);
   case MNE_CCF:
     API::write_byte(addr, 0x3F);
     return 1;
