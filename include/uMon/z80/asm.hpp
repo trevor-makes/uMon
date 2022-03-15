@@ -136,6 +136,17 @@ uint8_t encode_alu_hl(uint16_t addr, uint8_t mne, Operand& dst, Operand& src) {
 }
 
 template <typename API>
+uint8_t encode_alu(uint16_t addr, uint8_t mne, Operand& op1, Operand& op2) {
+  if (op2.token == TOK_INVALID) {
+    return encode_alu_a<API>(addr, mne, op1);
+  } else if (op1.token == TOK_A) {
+    return encode_alu_a<API>(addr, mne, op2);
+  } else {
+    return encode_alu_hl<API>(addr, mne, op1, op2);
+  }
+}
+
+template <typename API>
 uint8_t encode_cb(uint16_t addr, uint8_t code, Operand& op) {
   // Validate register
   uint8_t prefix = token_to_prefix(op.token);
@@ -260,6 +271,23 @@ uint8_t encode_ex(uint16_t addr, Operand& op1, Operand& op2) {
 }
 
 template <typename API>
+uint8_t encode_im(uint16_t addr, Operand& op) {
+  if (op.token == TOK_INTEGER && op.value < 3) {
+    static constexpr const uint8_t IM[] = { 0x46, 0x56, 0x5E };
+    API::write_byte(addr, PREFIX_ED);
+    API::write_byte(addr + 1, IM[op.value]);
+    return 2;
+  } else if (op.token == TOK_UNDEFINED) {
+    API::write_byte(addr, PREFIX_ED);
+    API::write_byte(addr + 1, 0x4E);
+    return 2;
+  } else {
+    print_operand_error<API>(op);
+    return 0;
+  }
+}
+
+template <typename API>
 uint8_t encode_in_out(uint16_t addr, bool is_in, Operand& data, Operand& port) {
   if (data.token == TOK_A && port.token == (TOK_INTEGER | TOK_INDIRECT)) {
     API::write_byte(addr, is_in ? 0333 : 0323);
@@ -324,19 +352,40 @@ uint8_t encode_push_pop(uint16_t addr, bool is_push, Operand& op) {
 }
 
 template <typename API>
+uint8_t encode_ret(uint16_t addr, Operand& op) {
+  if (op.token == TOK_INVALID) {
+    API::write_byte(addr, 0xC9);
+    return 1;
+  } else {
+    uint8_t cond = token_to_cond(op.token);
+    if (cond == COND_INVALID) {
+      print_operand_error<API>(op);
+      return 0;
+    }
+    API::write_byte(addr, 0300 | (cond << 3));
+    return 1;
+  }
+}
+
+template <typename API>
+uint8_t encode_rst(uint16_t addr, Operand& op) {
+  if (op.token == TOK_INTEGER && (op.value & 0307) == 0) {
+    API::write_byte(addr, 0307 | op.value);
+    return 1;
+  } else {
+    print_operand_error<API>(op);
+    return 0;
+  }
+}
+
+template <typename API>
 uint8_t impl_asm(uint16_t addr, Instruction inst) {
   Operand& op1 = inst.operands[0];
   Operand& op2 = inst.operands[1];
   switch (inst.mnemonic) {
   case MNE_ADC: case MNE_ADD: case MNE_SBC: case MNE_SUB:
   case MNE_AND: case MNE_CP:  case MNE_OR:  case MNE_XOR:
-    if (op2.token == TOK_INVALID) {
-      return encode_alu_a<API>(addr, inst.mnemonic, op1);
-    } else if (op1.token == TOK_A) {
-      return encode_alu_a<API>(addr, inst.mnemonic, op2);
-    } else {
-      return encode_alu_hl<API>(addr, inst.mnemonic, op1, op2);
-    }
+    return encode_alu<API>(addr, inst.mnemonic, op1, op2);
   case MNE_RLC: case MNE_RRC: case MNE_RL:  case MNE_RR:
   case MNE_SLA: case MNE_SRA: case MNE_SL1: case MNE_SRL:
     return encode_rot<API>(addr, inst.mnemonic, op1);
@@ -388,19 +437,7 @@ uint8_t impl_asm(uint16_t addr, Instruction inst) {
     API::write_byte(addr, 0x76);
     return 1;
   case MNE_IM:
-    if (op1.token == TOK_INTEGER && op1.value < 3) {
-      static constexpr const uint8_t IM[] = { 0x46, 0x56, 0x5E };
-      API::write_byte(addr, PREFIX_ED);
-      API::write_byte(addr + 1, IM[op1.value]);
-      return 2;
-    } else if (op1.token == TOK_UNDEFINED) {
-      API::write_byte(addr, PREFIX_ED);
-      API::write_byte(addr + 1, 0x4E);
-      return 2;
-    } else {
-      print_operand_error<API>(op1);
-      return 0;
-    }
+    return encode_im<API>(addr, op1);
   case MNE_IN:
     return encode_in_out<API>(addr, true, op1, op2);
   case MNE_INC:
@@ -471,18 +508,7 @@ uint8_t impl_asm(uint16_t addr, Instruction inst) {
   case MNE_PUSH:
     return encode_push_pop<API>(addr, true, op1);
   case MNE_RET:
-    if (op1.token == TOK_INVALID) {
-      API::write_byte(addr, 0xC9);
-      return 1;
-    } else {
-      uint8_t cond = token_to_cond(op1.token);
-      if (cond == COND_INVALID) {
-        print_operand_error<API>(op1);
-        return 0;
-      }
-      API::write_byte(addr, 0300 | (cond << 3));
-      return 1;
-    }
+    return encode_ret<API>(addr, op1);
   case MNE_RETI:
     API::write_byte(addr, PREFIX_ED);
     API::write_byte(addr + 1, 0x4D);
@@ -512,13 +538,7 @@ uint8_t impl_asm(uint16_t addr, Instruction inst) {
     API::write_byte(addr + 1, 0x67);
     return 2;
   case MNE_RST:
-    if (op1.token == TOK_INTEGER && (op1.value & 0307) == 0) {
-      API::write_byte(addr, 0307 | op1.value);
-      return 1;
-    } else {
-      print_operand_error<API>(op1);
-      return 0;
-    }
+    return encode_rst<API>(addr, op1);
   case MNE_SCF:
     API::write_byte(addr, 0x37);
     return 1;
