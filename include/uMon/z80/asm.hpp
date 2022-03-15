@@ -413,6 +413,19 @@ uint8_t impl_asm(uint16_t addr, Instruction inst) {
     API::write_byte(addr, PREFIX_ED);
     API::write_byte(addr + 1, 0xA3);
     return 2;
+  case MNE_RET:
+    if (op1.token == TOK_INVALID) {
+      API::write_byte(addr, 0xC9);
+      return 1;
+    } else {
+      uint8_t cond = token_to_cond(op1.token);
+      if (cond == COND_INVALID) {
+        print_operand_error<API>(op1);
+        return 0;
+      }
+      API::write_byte(addr, 0300 | (cond << 3));
+      return 1;
+    }
   case MNE_RETI:
     API::write_byte(addr, PREFIX_ED);
     API::write_byte(addr + 1, 0x4D);
