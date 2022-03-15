@@ -338,6 +338,171 @@ uint8_t encode_jr(uint16_t addr, Operand& op1, Operand& op2) {
 }
 
 template <typename API>
+uint8_t encode_ld(uint16_t addr, Operand& dst, Operand& src) {
+  // Special cases for destination A
+  if (dst.token == TOK_A) {
+    switch (src.token) {
+    case TOK_I:
+      API::write_byte(addr, PREFIX_ED);
+      API::write_byte(addr + 1, 0x57); // LD A,I
+      return 2;
+    case TOK_R:
+      API::write_byte(addr, PREFIX_ED);
+      API::write_byte(addr + 1, 0x5F); // LD A,R
+      return 2;
+    case TOK_BC | TOK_INDIRECT:
+      API::write_byte(addr, 0x0A); // LD A,(BC)
+      return 1;
+    case TOK_DE | TOK_INDIRECT:
+      API::write_byte(addr, 0x1A); // LD A,(DE)
+      return 1;
+    case TOK_INTEGER | TOK_INDIRECT:
+      API::write_byte(addr, 0x3A); // LD A,(nn)
+      API::write_byte(addr + 1, src.value & 0xFF);
+      API::write_byte(addr + 2, src.value >> 8);
+      return 3;
+    }
+  }
+
+  // Special cases for source A
+  if (src.token == TOK_A) {
+    switch (dst.token) {
+    case TOK_I:
+      API::write_byte(addr, PREFIX_ED);
+      API::write_byte(addr + 1, 0x47); // LD I,A
+      return 2;
+    case TOK_R:
+      API::write_byte(addr, PREFIX_ED);
+      API::write_byte(addr + 1, 0x4F); // LD R,A
+      return 2;
+    case TOK_BC | TOK_INDIRECT:
+      API::write_byte(addr, 0x02); // LD (BC),A
+      return 1;
+    case TOK_DE | TOK_INDIRECT:
+      API::write_byte(addr, 0x12); // LD (DE),A
+      return 1;
+    case TOK_INTEGER | TOK_INDIRECT:
+      API::write_byte(addr, 0x32); // LD (nn),A
+      API::write_byte(addr + 1, dst.value & 0xFF);
+      API::write_byte(addr + 2, dst.value >> 8);
+      return 3;
+    }
+  }
+
+  // Special cases for destination HL/IX/IY
+  uint8_t dst_prefix = token_to_prefix(dst.token);
+  uint8_t dst_pair = token_to_pair(dst.token, dst_prefix);
+  if (dst_pair == PAIR_HL) {
+    // Destination is HL/IX/IY
+    uint8_t& prefix = dst_prefix;
+    bool has_prefix = prefix != 0;
+    if (src.token == (TOK_INTEGER | TOK_INDIRECT)) {
+      // Source is address of 2-byte integer
+      if (has_prefix) API::write_byte(addr++, prefix);
+      API::write_byte(addr, 0x2A); // LD HL,(nn)
+      API::write_byte(addr + 1, src.value & 0xFF);
+      API::write_byte(addr + 2, src.value >> 8);
+      return has_prefix ? 4 : 3;
+    }
+  }
+
+  // Special cases for source HL/IX/IY
+  uint8_t src_prefix = token_to_prefix(src.token);
+  uint8_t src_pair = token_to_pair(src.token, src_prefix);
+  if (src_pair == PAIR_HL) {
+    // Source is HL/IX/IY
+    uint8_t& prefix = src_prefix;
+    bool has_prefix = prefix != 0;
+    if (dst.token == (TOK_INTEGER | TOK_INDIRECT)) {
+      // Desination is address of 2-byte integer
+      if (has_prefix) API::write_byte(addr++, prefix);
+      API::write_byte(addr, 0x22); // LD (nn),HL
+      API::write_byte(addr + 1, dst.value & 0xFF);
+      API::write_byte(addr + 2, dst.value >> 8);
+      return has_prefix ? 4 : 3;
+    } else if (dst.token == TOK_SP) {
+      // Destination is SP
+      if (has_prefix) API::write_byte(addr++, prefix);
+      API::write_byte(addr, 0xF9); // LD SP,HL
+      return has_prefix ? 2 : 1;
+    }
+  }
+
+  // Catch-all cases for any register/pair
+  uint8_t dst_reg = token_to_reg(dst.token, dst_prefix);
+  if (dst_reg != REG_INVALID) {
+    // Destination is any primary register
+    uint8_t src_reg = token_to_reg(src.token, src_prefix);
+    if (src_reg != REG_INVALID) {
+      // Source is any primary register
+      if (!(src_reg == REG_M && dst_prefix != 0)
+        && !(dst_reg == REG_M && src_prefix != 0)
+        && !(src_reg == REG_M && dst_reg == REG_M)
+        && (src_prefix ^ dst_prefix) != (PREFIX_IX ^ PREFIX_IY)
+        ) {
+        uint8_t prefix = dst_prefix != 0 ? dst_prefix : src_prefix;
+        bool has_prefix = prefix != 0;
+        bool has_index = has_prefix && (dst_reg == REG_M || src_reg == REG_M);
+        uint8_t disp = dst_reg == REG_M ? dst.value : src.value;
+        uint8_t code = 0100 | dst_reg << 3 | src_reg;
+        if (has_prefix) API::write_byte(addr++, prefix);
+        API::write_byte(addr, code); // LD r,r
+        if (has_index) API::write_byte(addr + 1, disp);
+        return has_index ? 3 : has_prefix ? 2 : 1;
+      }
+    } else if (src.token == TOK_INTEGER) {
+      // Source is 1-byte integer
+      uint8_t& prefix = dst_prefix;
+      bool has_prefix = prefix != 0;
+      bool has_index = has_prefix && dst_reg == REG_M;
+      uint8_t code = 0006 | dst_reg << 3;
+      if (has_prefix) API::write_byte(addr++, prefix);
+      API::write_byte(addr, code); // LD r,n
+      if (has_index) API::write_byte(++addr, dst.value);
+      API::write_byte(addr + 1, src.value & 0xFF);
+      return has_index ? 4 : has_prefix ? 3 : 2;
+    }
+  } else if (dst_pair != PAIR_INVALID) {
+    // Destination is any register pair
+    uint8_t& prefix = dst_prefix;
+    bool has_prefix = prefix != 0;
+    if (src.token == TOK_INTEGER) {
+      // Source is 2-byte integer
+      uint8_t code = 0001 | dst_pair << 4;
+      if (has_prefix) API::write_byte(addr++, prefix);
+      API::write_byte(addr, code); // LD rr,nn
+      API::write_byte(addr + 1, src.value & 0xFF);
+      API::write_byte(addr + 2, src.value >> 8);
+      return has_prefix ? 4 : 3;
+    } else if (src.token == (TOK_INTEGER | TOK_INDIRECT)) {
+      // Source is address of 2-byte integer
+      // NOTE LD HL/IX/IY,(nn) already handled by special case; only BC/DE/SP
+      uint8_t code = 0113 | dst_pair << 4;
+      API::write_byte(addr, PREFIX_ED);
+      API::write_byte(addr + 1, code); // LD rr,(nn)
+      API::write_byte(addr + 2, src.value & 0xFF);
+      API::write_byte(addr + 3, src.value >> 8);
+      return 4;
+    }
+  } else if (src_pair != PAIR_INVALID) {
+    // Source is any register pair
+    if (dst.token == (TOK_INTEGER | TOK_INDIRECT)) {
+      // Destination is address of 2-byte integer
+      // NOTE LD (nn),HL/IX/IY already handled by special case; only BC/DE/SP
+      uint8_t code = 0103 | src_pair << 4;
+      API::write_byte(addr, PREFIX_ED);
+      API::write_byte(addr + 1, code); // LD (nn),rr
+      API::write_byte(addr + 2, dst.value & 0xFF);
+      API::write_byte(addr + 3, dst.value >> 8);
+      return 4;
+    }
+  }
+
+  print_operand_error<API>(src);
+  return 0;
+}
+
+template <typename API>
 uint8_t encode_push_pop(uint16_t addr, bool is_push, Operand& op) {
   uint8_t code = is_push ? 0305 : 0301;
   uint8_t prefix = token_to_prefix(op.token);
@@ -462,6 +627,8 @@ uint8_t impl_asm(uint16_t addr, Instruction inst) {
     return encode_call_jp<API>(addr, false, op1, op2);
   case MNE_JR:
     return encode_jr<API>(addr, op1, op2);
+  case MNE_LD:
+    return encode_ld<API>(addr, op1, op2);
   case MNE_LDD:
     API::write_byte(addr, PREFIX_ED);
     API::write_byte(addr + 1, 0xA8);
