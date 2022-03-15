@@ -282,6 +282,34 @@ uint8_t encode_in_out(uint16_t addr, bool is_in, Operand& data, Operand& port) {
 }
 
 template <typename API>
+uint8_t encode_djnz_jr(uint16_t addr, uint8_t code, Operand& op) {
+  int16_t disp = op.value - (addr + 2);
+  if (op.token == TOK_INTEGER && disp >= -128 && disp <= 127) {
+    API::write_byte(addr, code);
+    API::write_byte(addr + 1, disp);
+    return 2;
+  } else {
+    print_operand_error<API>(op);
+    return 0;
+  }
+}
+
+template <typename API>
+uint8_t encode_jr(uint16_t addr, Operand& op1, Operand& op2) {
+  if (op2.token == TOK_INVALID) {
+    return encode_djnz_jr<API>(addr, 0x18, op1);
+  } else {
+    uint8_t cond = token_to_cond(op1.token);
+    if (cond > 3) {
+      print_operand_error<API>(op1);
+      return 0;
+    }
+    uint8_t code = 0040 | cond << 3;
+    return encode_djnz_jr<API>(addr, code, op2);
+  }
+}
+
+template <typename API>
 uint8_t encode_push_pop(uint16_t addr, bool is_push, Operand& op) {
   uint8_t code = is_push ? 0305 : 0301;
   uint8_t prefix = token_to_prefix(op.token);
@@ -347,13 +375,7 @@ uint8_t impl_asm(uint16_t addr, Instruction inst) {
     API::write_byte(addr, 0xF3);
     return 1;
   case MNE_DJNZ:
-    if (op1.token == TOK_INTEGER) {
-      API::write_byte(addr, 0x10);
-      // TODO validate if range in [-128, 127]
-      API::write_byte(addr + 1, op1.value - (addr + 2));
-      return 2;
-    }
-    break;
+    return encode_djnz_jr<API>(addr, 0x10, op1);
   case MNE_EI:
     API::write_byte(addr, 0xFB);
     return 1;
@@ -401,6 +423,8 @@ uint8_t impl_asm(uint16_t addr, Instruction inst) {
     return 2;
   case MNE_JP:
     return encode_call_jp<API>(addr, false, op1, op2);
+  case MNE_JR:
+    return encode_jr<API>(addr, op1, op2);
   case MNE_LDD:
     API::write_byte(addr, PREFIX_ED);
     API::write_byte(addr + 1, 0xA8);
