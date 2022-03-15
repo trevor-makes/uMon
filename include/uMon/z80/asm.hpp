@@ -169,6 +169,7 @@ uint8_t encode_bit(uint16_t addr, uint8_t mne, Operand& op1, Operand& op2) {
 
 template <typename API>
 uint8_t encode_call_jp(uint16_t addr, uint8_t mne, Operand& op1, Operand& op2) {
+  bool is_call = mne == MNE_CALL;
   uint8_t code, lsb, msb;
   if (op2.token == TOK_INTEGER) {
     uint8_t cond = token_to_cond(op1.token);
@@ -176,11 +177,11 @@ uint8_t encode_call_jp(uint16_t addr, uint8_t mne, Operand& op1, Operand& op2) {
       print_operand_error<API>(op1);
       return 0;
     }
-    code = (mne == MNE_CALL ? 0304 : 0302) | (cond << 3);
+    code = (is_call ? 0304 : 0302) | (cond << 3);
     lsb = op2.value & 0xFF;
     msb = op2.value >> 8;
   } else if (op1.token == TOK_INTEGER && op2.token == TOK_INVALID) {
-    code = mne == MNE_CALL ? 0315 : 0303;
+    code = is_call ? 0315 : 0303;
     lsb = op1.value & 0xFF;
     msb = op1.value >> 8;
   } else {
@@ -194,7 +195,7 @@ uint8_t encode_call_jp(uint16_t addr, uint8_t mne, Operand& op1, Operand& op2) {
 }
 
 template <typename API>
-uint8_t encode_inc(uint16_t addr, uint8_t mne, Operand& op) {
+uint8_t encode_inc_dec(uint16_t addr, uint8_t mne, Operand& op) {
   bool is_inc = mne == MNE_INC;
   uint8_t prefix = token_to_prefix(op.token);
   uint8_t reg = token_to_reg(op.token, prefix);
@@ -249,6 +250,31 @@ uint8_t encode_ex(uint16_t addr, Operand& op1, Operand& op2) {
 }
 
 template <typename API>
+uint8_t encode_in_out(uint16_t addr, uint8_t mne, Operand& op1, Operand& op2) {
+  bool is_in = mne == MNE_IN;
+  Operand& data = is_in ? op1 : op2;
+  Operand& port = is_in ? op2 : op1;
+  if (data.token == TOK_A && port.token == (TOK_INTEGER | TOK_INDIRECT)) {
+    API::write_byte(addr, is_in ? 0333 : 0323);
+    API::write_byte(addr + 1, port.value);
+    return 2;
+  } else if (port.token == (TOK_C | TOK_INDIRECT)) {
+    uint8_t reg = token_to_reg(data.token);
+    if (reg == REG_INVALID || reg == REG_M) {
+      print_operand_error<API>(data);
+      return 0;
+    }
+    uint8_t code = (is_in ? 0100 : 0101) | reg << 3;
+    API::write_byte(addr, PREFIX_ED);
+    API::write_byte(addr + 1, code);
+    return 2;
+  } else {
+    print_operand_error<API>(port);
+    return 0;
+  }
+}
+
+template <typename API>
 uint8_t impl_asm(uint16_t addr, Instruction inst) {
   Operand& op1 = inst.operands[0];
   Operand& op2 = inst.operands[1];
@@ -292,7 +318,7 @@ uint8_t impl_asm(uint16_t addr, Instruction inst) {
     API::write_byte(addr, 0x27);
     return 1;
   case MNE_DEC: case MNE_INC:
-    return encode_inc<API>(addr, inst.mnemonic, op1);
+    return encode_inc_dec<API>(addr, inst.mnemonic, op1);
   case MNE_DI:
     API::write_byte(addr, 0xF3);
     return 1;
@@ -329,6 +355,8 @@ uint8_t impl_asm(uint16_t addr, Instruction inst) {
       print_operand_error<API>(op1);
       return 0;
     }
+  case MNE_IN: case MNE_OUT:
+    return encode_in_out<API>(addr, inst.mnemonic, op1, op2);
   case MNE_IND:
     API::write_byte(addr, PREFIX_ED);
     API::write_byte(addr + 1, 0xAA);
