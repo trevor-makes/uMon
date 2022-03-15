@@ -142,6 +142,29 @@ uint8_t encode_alu_hl(uint16_t addr, uint8_t mne, Operand& dst, Operand& src) {
 }
 
 template <typename API>
+uint8_t encode_ex(uint16_t addr, Operand& op1, Operand& op2) {
+  if (op1.token == (TOK_SP | TOK_INDIRECT)) {
+    uint8_t prefix = token_to_prefix(op2.token);
+    if (token_to_pair(op2.token, prefix) != PAIR_HL) {
+      print_operand_error<API>(op2);
+      return 0;
+    }
+    if (prefix != 0) API::write_byte(addr++, prefix);
+    API::write_byte(addr, 0xE3);
+    return prefix != 0 ? 2 : 1;
+  } else if (op1.token == TOK_DE && op2.token == TOK_HL) {
+    API::write_byte(addr, 0xEB);
+    return 1;
+  } else if (op1.token == TOK_AF && (op2.token == TOK_AF || op2.token == TOK_INVALID)) {
+    API::write_byte(addr, 0x08);
+    return 1;
+  } else {
+    print_operand_error<API>(op1);
+    return 0;
+  }
+}
+
+template <typename API>
 uint8_t impl_asm(uint16_t addr, Instruction inst) {
   Operand& op1 = inst.operands[0];
   Operand& op2 = inst.operands[1];
@@ -201,23 +224,7 @@ uint8_t impl_asm(uint16_t addr, Instruction inst) {
     API::write_byte(addr, 0xFB);
     return 1;
   case MNE_EX:
-    if (op1.token == (TOK_SP | TOK_INDIRECT)) {
-      if (op2.token == TOK_HL) {
-        API::write_byte(addr, 0xE3);
-        return 1;
-      } else if (op2.token == TOK_IX || op2.token == TOK_IY) {
-        API::write_byte(addr, token_to_prefix(op2.token));
-        API::write_byte(addr + 1, 0xE3);
-        return 2;
-      }
-    } else if (op1.token == TOK_DE && op2.token == TOK_HL) {
-      API::write_byte(addr, 0xEB);
-      return 1;
-    } else if (op1.token == TOK_AF && op2.token == TOK_AF) {
-      API::write_byte(addr, 0x08);
-      return 1;
-    }
-    break;
+    return encode_ex<API>(addr, op1, op2);
   case MNE_EXX:
     API::write_byte(addr, 0xD9);
     return 1;
@@ -233,8 +240,11 @@ uint8_t impl_asm(uint16_t addr, Instruction inst) {
     } else if (op1.token == TOK_UNDEFINED) {
       API::write_byte(addr, PREFIX_ED);
       API::write_byte(addr + 1, 0x4E);
+      return 2;
+    } else {
+      print_operand_error<API>(op1);
+      return 0;
     }
-    break;
   case MNE_IND:
     API::write_byte(addr, PREFIX_ED);
     API::write_byte(addr + 1, 0xAA);
@@ -320,11 +330,12 @@ uint8_t impl_asm(uint16_t addr, Instruction inst) {
     return 2;
   case MNE_RST:
     if (op1.token == TOK_INTEGER && (op1.value & 0307) == 0) {
-      // TODO should print an error if value out of range
       API::write_byte(addr, 0307 | op1.value);
       return 1;
+    } else {
+      print_operand_error<API>(op1);
+      return 0;
     }
-    break;
   case MNE_SCF:
     API::write_byte(addr, 0x37);
     return 1;
