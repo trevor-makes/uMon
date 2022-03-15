@@ -135,6 +135,35 @@ uint8_t encode_alu_hl(uint16_t addr, uint8_t mne, Operand& dst, Operand& src) {
   }
 }
 
+template <typename API>
+uint8_t encode_cb(uint16_t addr, uint8_t code, Operand& op) {
+  // Validate register
+  uint8_t prefix = token_to_prefix(op.token);
+  uint8_t reg = token_to_reg(op.token, prefix);
+  if (reg == REG_INVALID || (prefix != 0 && reg != REG_M)) {
+    print_operand_error<API>(op);
+    return 0;
+  }
+  if (prefix != 0) {
+    API::write_byte(addr, prefix);
+    API::write_byte(addr + 1, PREFIX_CB);
+    API::write_byte(addr + 2, op.value);
+    API::write_byte(addr + 3, code | reg);
+    return 4;
+  } else {
+    API::write_byte(addr, PREFIX_CB);
+    API::write_byte(addr + 1, code | reg);
+    return 2;
+  }
+}
+
+template <typename API>
+uint8_t encode_rot(uint16_t addr, uint8_t mne, Operand& op) {
+  // NOTE mne assumed to be valid
+  uint8_t code = index_of(ROT_MNE, mne) << 3;
+  return encode_cb<API>(addr, code, op);
+}
+
 // Encode CB-prefix BIT, RES, and SET ops
 template <typename API>
 uint8_t encode_bit(uint16_t addr, uint8_t mne, Operand& op1, Operand& op2) {
@@ -144,27 +173,10 @@ uint8_t encode_bit(uint16_t addr, uint8_t mne, Operand& op1, Operand& op2) {
     return 0;
   }
   uint8_t bit = op1.value << 3;
-  // Validate register
-  uint8_t prefix = token_to_prefix(op2.token);
-  uint8_t reg = token_to_reg(op2.token, prefix);
-  if (reg == REG_INVALID || (prefix != 0 && reg != REG_M)) {
-    print_operand_error<API>(op2);
-    return 0;
-  }
   // NOTE mne assumed to be valid
   uint8_t op = index_of(CB_MNE, mne) << 6;
-  uint8_t code = op | bit | reg;
-  if (prefix != 0) {
-    API::write_byte(addr, prefix);
-    API::write_byte(addr + 1, PREFIX_CB);
-    API::write_byte(addr + 2, op2.value);
-    API::write_byte(addr + 3, code);
-    return 4;
-  } else {
-    API::write_byte(addr, PREFIX_CB);
-    API::write_byte(addr + 1, code);
-    return 2;
-  }
+  uint8_t code = op | bit;
+  return encode_cb<API>(addr, code, op2);
 }
 
 template <typename API>
@@ -283,6 +295,9 @@ uint8_t impl_asm(uint16_t addr, Instruction inst) {
     } else {
       return encode_alu_hl<API>(addr, inst.mnemonic, op1, op2);
     }
+  case MNE_RLC: case MNE_RRC: case MNE_RL:  case MNE_RR:
+  case MNE_SLA: case MNE_SRA: case MNE_SL1: case MNE_SRL:
+    return encode_rot<API>(addr, inst.mnemonic, op1);
   case MNE_BIT: case MNE_RES: case MNE_SET:
     return encode_bit<API>(addr, inst.mnemonic, op1, op2);
   case MNE_CALL:
