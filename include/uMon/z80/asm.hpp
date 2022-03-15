@@ -86,8 +86,12 @@ uint8_t encode_alu_a(uint16_t addr, uint8_t mne, Operand& src) {
       // Write [prefix, code, displacement]
       API::write_byte(addr, prefix);
       API::write_byte(addr + 1, code);
-      API::write_byte(addr + 2, src.value);
-      return 3;
+      if (reg == REG_M) {
+        API::write_byte(addr + 2, src.value);
+        return 3;
+      } else {
+        return 2;
+      }
     } else {
       API::write_byte(addr, code);
       return 1;
@@ -164,6 +168,38 @@ uint8_t encode_bit(uint16_t addr, uint8_t mne, Operand& op1, Operand& op2) {
 }
 
 template <typename API>
+uint8_t encode_inc(uint16_t addr, uint8_t mne, Operand& op) {
+  bool is_inc = mne == MNE_INC;
+  uint8_t prefix = token_to_prefix(op.token);
+  uint8_t reg = token_to_reg(op.token, prefix);
+  uint8_t pair = token_to_pair(op.token, prefix);
+  if (reg != REG_INVALID) {
+    uint8_t code = is_inc ? 0004 : 0005;
+    if (prefix != 0) {
+      API::write_byte(addr, prefix);
+      API::write_byte(addr + 1, code | (reg << 3));
+      if (reg == REG_M) {
+        API::write_byte(addr + 2, op.value);
+        return 3;
+      } else {
+        return 2;
+      }
+    } else {
+      API::write_byte(addr, code | (reg << 3));
+      return 1;
+    }
+  } else if (pair != PAIR_INVALID) {
+    if (prefix != 0) API::write_byte(addr++, prefix);
+    uint8_t code = is_inc ? 0003 : 0013;
+    API::write_byte(addr, code | (pair << 4));
+    return prefix != 0 ? 2 : 1;
+  } else {
+    print_operand_error<API>(op);
+    return 0;
+  }
+}
+
+template <typename API>
 uint8_t encode_ex(uint16_t addr, Operand& op1, Operand& op2) {
   if (op1.token == (TOK_SP | TOK_INDIRECT)) {
     uint8_t prefix = token_to_prefix(op2.token);
@@ -227,6 +263,8 @@ uint8_t impl_asm(uint16_t addr, Instruction inst) {
   case MNE_DAA:
     API::write_byte(addr, 0x27);
     return 1;
+  case MNE_DEC: case MNE_INC:
+    return encode_inc<API>(addr, inst.mnemonic, op1);
   case MNE_DI:
     API::write_byte(addr, 0xF3);
     return 1;

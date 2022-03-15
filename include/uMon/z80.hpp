@@ -73,10 +73,6 @@ void cmd_asm(uCLI::Args args) {
   }
   // TODO error if unparsed operands remain?
 
-  // TODO just print for now
-  print_instruction<API>(inst);
-  API::print_char('\n');
-
   uint8_t size = impl_asm<API>(start, inst);
   if (size > 0) {
     set_prompt<API>(args.command(), start + size);
