@@ -282,6 +282,20 @@ uint8_t encode_in_out(uint16_t addr, bool is_in, Operand& data, Operand& port) {
 }
 
 template <typename API>
+uint8_t encode_push_pop(uint16_t addr, bool is_push, Operand& op) {
+  uint8_t code = is_push ? 0305 : 0301;
+  uint8_t prefix = token_to_prefix(op.token);
+  uint8_t pair = token_to_pair(op.token, prefix, true);
+  if (pair == PAIR_INVALID) {
+    print_operand_error<API>(op);
+    return 0;
+  }
+  if (prefix != 0) API::write_byte(addr++, prefix);
+  API::write_byte(addr, code | pair << 4);
+  return prefix != 0 ? 2 : 1;
+}
+
+template <typename API>
 uint8_t impl_asm(uint16_t addr, Instruction inst) {
   Operand& op1 = inst.operands[0];
   Operand& op2 = inst.operands[1];
@@ -428,6 +442,10 @@ uint8_t impl_asm(uint16_t addr, Instruction inst) {
     API::write_byte(addr, PREFIX_ED);
     API::write_byte(addr + 1, 0xA3);
     return 2;
+  case MNE_POP:
+    return encode_push_pop<API>(addr, false, op1);
+  case MNE_PUSH:
+    return encode_push_pop<API>(addr, true, op1);
   case MNE_RET:
     if (op1.token == TOK_INVALID) {
       API::write_byte(addr, 0xC9);
