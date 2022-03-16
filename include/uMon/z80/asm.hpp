@@ -19,10 +19,18 @@ void print_operand_error(Operand& op) {
 }
 
 template <typename API>
-void write_op_word(uint16_t addr, uint8_t code, uint16_t value) {
+uint8_t write_op_word(uint16_t addr, uint8_t code, uint16_t value) {
   API::write_byte(addr, code);
   API::write_byte(addr + 1, value & 0xFF);
   API::write_byte(addr + 2, value >> 8);
+  return 3;
+}
+
+template <typename API>
+uint8_t write_prefix_op_word(uint16_t addr, uint8_t prefix, uint8_t code, uint16_t value) {
+  bool has_prefix = prefix != 0;
+  if (has_prefix) API::write_byte(addr++, prefix);
+  return has_prefix + write_op_word<API>(addr, code, value);
 }
 
 template <typename T, uint8_t N>
@@ -85,24 +93,17 @@ uint8_t encode_alu_a(uint16_t addr, uint8_t mne, Operand& src) {
     // Validate source operand is register
     uint8_t prefix = token_to_prefix(src.token);
     uint8_t reg = token_to_reg(src.token, prefix);
-    uint8_t code = 0200 | (alu << 3) | reg;
     if (reg == REG_INVALID) {
       print_operand_error<API>(src);
       return 0;
-    } else if (prefix != 0) {
-      // Write [prefix, code, displacement]
-      API::write_byte(addr, prefix);
-      API::write_byte(addr + 1, code);
-      if (reg == REG_M) {
-        API::write_byte(addr + 2, src.value);
-        return 3;
-      } else {
-        return 2;
-      }
-    } else {
-      API::write_byte(addr, code);
-      return 1;
     }
+    bool has_prefix = prefix != 0;
+    bool has_index = has_prefix && reg == REG_M;
+    uint8_t code = 0200 | (alu << 3) | reg;
+    if (has_prefix) API::write_byte(addr++, prefix);
+    API::write_byte(addr, code);
+    if (has_index) API::write_byte(addr + 1, src.value);
+    return has_index ? 3 : has_prefix ? 2 : 1;
   }
 }
 
@@ -203,14 +204,12 @@ uint8_t encode_call_jp(uint16_t addr, bool is_call, Operand& op1, Operand& op2) 
     uint8_t cond = token_to_cond(op1.token);
     if (cond != COND_INVALID) {
       uint8_t code = (is_call ? 0304 : 0302) | (cond << 3);
-      write_op_word<API>(addr, code, op2.value);
-      return 3;
+      return write_op_word<API>(addr, code, op2.value);
     }
   } else if (op2.token == TOK_INVALID) {
     if (op1.token == TOK_INTEGER) {
       uint8_t code = is_call ? 0315 : 0303;
-      write_op_word<API>(addr, code, op1.value);
-      return 3;
+      return write_op_word<API>(addr, code, op1.value);
     } else if (!is_call) { // JP only
       uint8_t prefix = token_to_prefix(op1.token);
       uint8_t reg = token_to_reg(op1.token, prefix);
@@ -230,26 +229,19 @@ uint8_t encode_inc_dec(uint16_t addr, bool is_inc, Operand& op) {
   uint8_t prefix = token_to_prefix(op.token);
   uint8_t reg = token_to_reg(op.token, prefix);
   uint8_t pair = token_to_pair(op.token, prefix);
+  bool has_prefix = prefix != 0;
   if (reg != REG_INVALID) {
+    bool has_index = has_prefix && reg == REG_M;
     uint8_t code = is_inc ? 0004 : 0005;
-    if (prefix != 0) {
-      API::write_byte(addr, prefix);
-      API::write_byte(addr + 1, code | (reg << 3));
-      if (reg == REG_M) {
-        API::write_byte(addr + 2, op.value);
-        return 3;
-      } else {
-        return 2;
-      }
-    } else {
-      API::write_byte(addr, code | (reg << 3));
-      return 1;
-    }
+    if (has_prefix) API::write_byte(addr++, prefix);
+    API::write_byte(addr, code | (reg << 3));
+    if (has_index) API::write_byte(addr + 1, op.value);
+    return has_index ? 3 : has_prefix ? 2 : 1;
   } else if (pair != PAIR_INVALID) {
-    if (prefix != 0) API::write_byte(addr++, prefix);
     uint8_t code = is_inc ? 0003 : 0013;
+    if (has_prefix) API::write_byte(addr++, prefix);
     API::write_byte(addr, code | (pair << 4));
-    return prefix != 0 ? 2 : 1;
+    return has_prefix ? 2 : 1;
   } else {
     print_operand_error<API>(op);
     return 0;
@@ -366,10 +358,7 @@ uint8_t encode_ld(uint16_t addr, Operand& dst, Operand& src) {
       API::write_byte(addr, 0x1A); // LD A,(DE)
       return 1;
     case TOK_INTEGER | TOK_INDIRECT:
-      API::write_byte(addr, 0x3A); // LD A,(nn)
-      API::write_byte(addr + 1, src.value & 0xFF);
-      API::write_byte(addr + 2, src.value >> 8);
-      return 3;
+      return write_op_word<API>(addr, 0x3A, src.value); // LD A,(nn)
     }
   }
 
@@ -391,46 +380,28 @@ uint8_t encode_ld(uint16_t addr, Operand& dst, Operand& src) {
       API::write_byte(addr, 0x12); // LD (DE),A
       return 1;
     case TOK_INTEGER | TOK_INDIRECT:
-      API::write_byte(addr, 0x32); // LD (nn),A
-      API::write_byte(addr + 1, dst.value & 0xFF);
-      API::write_byte(addr + 2, dst.value >> 8);
-      return 3;
+      return write_op_word<API>(addr, 0x32, dst.value); // LD (nn),A
     }
   }
 
   // Special cases for destination HL/IX/IY
   uint8_t dst_prefix = token_to_prefix(dst.token);
   uint8_t dst_pair = token_to_pair(dst.token, dst_prefix);
-  if (dst_pair == PAIR_HL) {
-    // Destination is HL/IX/IY
-    uint8_t& prefix = dst_prefix;
-    bool has_prefix = prefix != 0;
-    if (src.token == (TOK_INTEGER | TOK_INDIRECT)) {
-      // Source is address of 2-byte integer
-      if (has_prefix) API::write_byte(addr++, prefix);
-      API::write_byte(addr, 0x2A); // LD HL,(nn)
-      API::write_byte(addr + 1, src.value & 0xFF);
-      API::write_byte(addr + 2, src.value >> 8);
-      return has_prefix ? 4 : 3;
+  if (dst_pair == PAIR_HL) { // HL, IX, IY
+    if (src.token == (TOK_INTEGER | TOK_INDIRECT)) { // LD HL,(nn)
+      return write_prefix_op_word<API>(addr, dst_prefix, 0x2A, src.value);
     }
   }
 
   // Special cases for source HL/IX/IY
   uint8_t src_prefix = token_to_prefix(src.token);
   uint8_t src_pair = token_to_pair(src.token, src_prefix);
-  if (src_pair == PAIR_HL) {
-    // Source is HL/IX/IY
+  if (src_pair == PAIR_HL) { // HL, IX, IY
     uint8_t& prefix = src_prefix;
     bool has_prefix = prefix != 0;
-    if (dst.token == (TOK_INTEGER | TOK_INDIRECT)) {
-      // Desination is address of 2-byte integer
-      if (has_prefix) API::write_byte(addr++, prefix);
-      API::write_byte(addr, 0x22); // LD (nn),HL
-      API::write_byte(addr + 1, dst.value & 0xFF);
-      API::write_byte(addr + 2, dst.value >> 8);
-      return has_prefix ? 4 : 3;
+    if (dst.token == (TOK_INTEGER | TOK_INDIRECT)) { // LD (nn),HL
+      return write_prefix_op_word<API>(addr, prefix, 0x22, dst.value);
     } else if (dst.token == TOK_SP) {
-      // Destination is SP
       if (has_prefix) API::write_byte(addr++, prefix);
       API::write_byte(addr, 0xF9); // LD SP,HL
       return has_prefix ? 2 : 1;
@@ -472,38 +443,19 @@ uint8_t encode_ld(uint16_t addr, Operand& dst, Operand& src) {
       return has_index ? 4 : has_prefix ? 3 : 2;
     }
   } else if (dst_pair != PAIR_INVALID) {
-    // Destination is any register pair
-    uint8_t& prefix = dst_prefix;
-    bool has_prefix = prefix != 0;
     if (src.token == TOK_INTEGER) {
-      // Source is 2-byte integer
-      uint8_t code = 0001 | dst_pair << 4;
-      if (has_prefix) API::write_byte(addr++, prefix);
-      API::write_byte(addr, code); // LD rr,nn
-      API::write_byte(addr + 1, src.value & 0xFF);
-      API::write_byte(addr + 2, src.value >> 8);
-      return has_prefix ? 4 : 3;
+      uint8_t code = 0001 | dst_pair << 4; // LD rr,nn
+      return write_prefix_op_word<API>(addr, dst_prefix, code, src.value);
     } else if (src.token == (TOK_INTEGER | TOK_INDIRECT)) {
-      // Source is address of 2-byte integer
       // NOTE LD HL/IX/IY,(nn) already handled by special case; only BC/DE/SP
-      uint8_t code = 0113 | dst_pair << 4;
-      API::write_byte(addr, PREFIX_ED);
-      API::write_byte(addr + 1, code); // LD rr,(nn)
-      API::write_byte(addr + 2, src.value & 0xFF);
-      API::write_byte(addr + 3, src.value >> 8);
-      return 4;
+      uint8_t code = 0113 | dst_pair << 4; // LD rr,(nn)
+      return write_prefix_op_word<API>(addr, PREFIX_ED, code, src.value);
     }
   } else if (src_pair != PAIR_INVALID) {
-    // Source is any register pair
     if (dst.token == (TOK_INTEGER | TOK_INDIRECT)) {
-      // Destination is address of 2-byte integer
       // NOTE LD (nn),HL/IX/IY already handled by special case; only BC/DE/SP
-      uint8_t code = 0103 | src_pair << 4;
-      API::write_byte(addr, PREFIX_ED);
-      API::write_byte(addr + 1, code); // LD (nn),rr
-      API::write_byte(addr + 2, dst.value & 0xFF);
-      API::write_byte(addr + 3, dst.value >> 8);
-      return 4;
+      uint8_t code = 0103 | src_pair << 4; // LD (nn),rr
+      return write_prefix_op_word<API>(addr, PREFIX_ED, code, dst.value);
     }
   }
 
