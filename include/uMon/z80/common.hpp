@@ -135,11 +135,17 @@ enum {
 #include "tokens.def"
 #undef ITEM
   TOK_INVALID,
-  TOK_INTEGER,
+  TOK_IMMEDIATE,
   TOK_MASK = 0x1F,
   TOK_BYTE = 0x20,
   TOK_DIGIT = 0x40,
   TOK_INDIRECT = 0x80,
+  TOK_IMM_IND = TOK_IMMEDIATE | TOK_INDIRECT,
+  TOK_BC_IND = TOK_BC | TOK_INDIRECT,
+  TOK_DE_IND = TOK_DE | TOK_INDIRECT,
+  TOK_HL_IND = TOK_HL | TOK_INDIRECT,
+  TOK_IX_IND = TOK_IX | TOK_INDIRECT,
+  TOK_IY_IND = TOK_IY | TOK_INDIRECT,
 };
 
 // Individual token strings in Flash memory
@@ -167,7 +173,7 @@ ITEM(D, TOK_D, TOK_D, TOK_D) \
 ITEM(E, TOK_E, TOK_E, TOK_E) \
 ITEM(H, TOK_H, TOK_IXH, TOK_IYH) \
 ITEM(L, TOK_L, TOK_IXL, TOK_IYL) \
-ITEM(M, TOK_INDIRECT | TOK_HL, TOK_INDIRECT | TOK_IX, TOK_INDIRECT | TOK_IY) \
+ITEM(M, TOK_HL_IND, TOK_IX_IND, TOK_IY_IND) \
 ITEM(A, TOK_A, TOK_A, TOK_A)
 
 enum {
@@ -285,7 +291,7 @@ void print_operand(Operand& op) {
       API::print_char('$');
       fmt_hex8(API::print_char, value < 0 ? -value : value);
     }
-  } else if (token == TOK_INTEGER) {
+  } else if (token == TOK_IMMEDIATE) {
     if (is_digit) {
       API::print_char('0' + op.value);
     } else if (is_byte) {

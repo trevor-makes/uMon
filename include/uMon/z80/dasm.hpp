@@ -26,7 +26,7 @@ void print_prefix_error(uint8_t prefix, uint8_t code) {
 // Convert 1-byte immediate at addr to Operand
 template <typename API>
 Operand read_imm_byte(uint16_t addr, bool is_indirect = false) {
-  uint8_t token = TOK_INTEGER | TOK_BYTE;
+  uint8_t token = TOK_IMMEDIATE | TOK_BYTE;
   if (is_indirect) token |= TOK_INDIRECT;
   uint16_t value = API::read_byte(addr);
   return { token, value };
@@ -35,7 +35,7 @@ Operand read_imm_byte(uint16_t addr, bool is_indirect = false) {
 // Convert 2-byte immediate at addr to Operand
 template <typename API>
 Operand read_imm_word(uint16_t addr, bool is_indirect = false) {
-  uint8_t token = TOK_INTEGER;
+  uint8_t token = TOK_IMMEDIATE;
   if (is_indirect) token |= TOK_INDIRECT;
   uint8_t lsb = API::read_byte(addr);
   uint8_t msb = API::read_byte(addr + 1);
@@ -45,8 +45,8 @@ Operand read_imm_word(uint16_t addr, bool is_indirect = false) {
 
 // Convert displacement byte at addr to Operand
 template <typename API>
-Operand read_disp(uint16_t addr) {
-  uint8_t token = TOK_INTEGER;
+Operand read_branch_disp(uint16_t addr) {
+  uint8_t token = TOK_IMMEDIATE;
   int8_t disp = API::read_byte(addr);
   uint16_t value = addr + 1 + disp;
   return { token, value };
@@ -126,7 +126,7 @@ uint8_t decode_im(Instruction& inst, uint8_t code) {
   if (mode == 1) {
     inst.operands[0].token = TOK_UNDEFINED;
   } else {
-    inst.operands[0].token = TOK_INTEGER | TOK_DIGIT;
+    inst.operands[0].token = TOK_IMMEDIATE | TOK_DIGIT;
     inst.operands[0].value = mode > 0 ? mode - 1 : mode;
   }
   return 1;
@@ -213,7 +213,7 @@ uint8_t decode_cb(Instruction& inst, uint16_t addr, uint8_t prefix) {
   Operand& reg_op = inst.operands[op == CB_ROT ? 0 : 1];
   // Print bit index (only for BIT/RES/SET)
   if (op != CB_ROT) {
-    inst.operands[0].token = TOK_INTEGER | TOK_DIGIT;
+    inst.operands[0].token = TOK_IMMEDIATE | TOK_DIGIT;
     inst.operands[0].value = index;
   }
   if (has_prefix) {
@@ -249,16 +249,16 @@ uint8_t decode_jr(Instruction& inst, uint16_t addr, uint8_t code) {
     return 1;
   case 020:
     inst.mnemonic = MNE_DJNZ;
-    inst.operands[0] = read_disp<API>(addr + 1);
+    inst.operands[0] = read_branch_disp<API>(addr + 1);
     return 2;
   case 030:
     inst.mnemonic = MNE_JR;
-    inst.operands[0] = read_disp<API>(addr + 1);
+    inst.operands[0] = read_branch_disp<API>(addr + 1);
     return 2;
   default:
     inst.mnemonic = MNE_JR;
     inst.operands[0].token = COND_TOK[(code & 030) >> 3];
-    inst.operands[1] = read_disp<API>(addr + 1);
+    inst.operands[1] = read_branch_disp<API>(addr + 1);
     return 2;
   }
 }
@@ -540,7 +540,7 @@ uint8_t decode_base(Instruction& inst, uint16_t addr, uint8_t prefix = 0) {
       return 2;
     case 7:
       inst.mnemonic = MNE_RST;
-      inst.operands[0].token = TOK_INTEGER | TOK_BYTE;
+      inst.operands[0].token = TOK_IMMEDIATE | TOK_BYTE;
       inst.operands[0].value = code & 070;
       return 1;
     default: // 0, 1, 2, 4, 5

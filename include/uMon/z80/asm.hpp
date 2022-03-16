@@ -112,9 +112,11 @@ template <typename API>
 uint8_t encode_alu_a(uint16_t addr, uint8_t mne, Operand& src) {
   // NOTE mne assumed to be valid
   uint8_t alu = index_of(ALU_MNE, mne);
-  if (src.token == TOK_INTEGER) {
+  // ALU A,n
+  if (src.token == TOK_IMMEDIATE) {
     uint8_t code = 0306 | alu << 3;
     return write_op_byte<API>(addr, code, src.value);
+  // ALU A,r
   } else {
     // Validate source operand is register
     uint8_t prefix = token_to_prefix(src.token);
@@ -137,25 +139,21 @@ uint8_t encode_alu_hl(uint16_t addr, uint8_t mne, Operand& dst, Operand& src) {
     print_operand_error<API>(dst);
     return 0;
   }
-  // Make sure src and dst prefixes match (can't mix HL/IX/IY)
-  uint8_t src_prefix = token_to_prefix(src.token);
-  if (src_prefix != 0 && src_prefix != prefix) {
-    print_operand_error<API>(src);
-    return 0;
-  }
-  // Validate src operand is pair
+  // Validate src operand is pair with same prefix
   uint8_t src_pair = token_to_pair(src.token, prefix);
   if (src_pair == PAIR_INVALID) {
     print_operand_error<API>(src);
     return 0;
   }
-  // Handle ADD, ADC, SBC
+  // ADD HL,rr
   if (mne == MNE_ADD) {
-    uint8_t code = 0011 | (src_pair << 4); // ADD HL,rr
+    uint8_t code = 0011 | (src_pair << 4);
     return write_prefix_op<API>(addr, prefix, code);
+  // ADC/SBC HL,rr
   } else if (prefix == 0 && (mne == MNE_ADC || mne == MNE_SBC)) {
-    uint8_t code = mne == MNE_ADC ? 0112 : 0102; // ADC/SBC HL,rr
+    uint8_t code = mne == MNE_ADC ? 0112 : 0102;
     return write_prefix_op<API>(addr, PREFIX_ED, code | src_pair << 4);
+  // ?
   } else {
     print_operand_error<API>(dst);
     return 0;
@@ -204,7 +202,7 @@ uint8_t encode_rot(uint16_t addr, uint8_t mne, Operand& op) {
 template <typename API>
 uint8_t encode_bit(uint16_t addr, uint8_t mne, Operand& op1, Operand& op2) {
   // Validate bit index
-  if (op1.token != TOK_INTEGER || op1.value > 7) {
+  if (op1.token != TOK_IMMEDIATE || op1.value > 7) {
     print_operand_error<API>(op1);
     return 0;
   }
@@ -216,24 +214,26 @@ uint8_t encode_bit(uint16_t addr, uint8_t mne, Operand& op1, Operand& op2) {
 
 template <typename API>
 uint8_t encode_call_jp(uint16_t addr, bool is_call, Operand& op1, Operand& op2) {
-  if (op2.token == TOK_INTEGER) {
+  // CALL/JP cc,nn
+  if (op2.token == TOK_IMMEDIATE) {
     uint8_t cond = token_to_cond(op1.token);
     if (cond != COND_INVALID) {
       uint8_t code = (is_call ? 0304 : 0302) | (cond << 3);
       return write_op_word<API>(addr, code, op2.value);
     }
-  } else if (op2.token == TOK_INVALID) {
-    if (op1.token == TOK_INTEGER) {
-      uint8_t code = is_call ? 0315 : 0303;
-      return write_op_word<API>(addr, code, op1.value);
-    } else if (!is_call) { // JP only
-      uint8_t prefix = token_to_prefix(op1.token);
-      uint8_t reg = token_to_reg(op1.token, prefix);
-      if (reg == REG_M) { // (HL), (IX), (IY)
-        return write_prefix_op<API>(addr, prefix, 0xE9); // JP (HL)
-      }
+  // CALL/JP nn
+  } else if (op1.token == TOK_IMMEDIATE) {
+    uint8_t code = is_call ? 0315 : 0303;
+    return write_op_word<API>(addr, code, op1.value);
+  // JP (HL/IX/IY)
+  } else if (!is_call) {
+    uint8_t prefix = token_to_prefix(op1.token);
+    uint8_t reg = token_to_reg(op1.token, prefix);
+    if (reg == REG_M) {
+      return write_prefix_op<API>(addr, prefix, 0xE9);
     }
   }
+  // ?
   print_operand_error<API>(op1);
   return 0;
 }
@@ -244,13 +244,16 @@ uint8_t encode_inc_dec(uint16_t addr, bool is_inc, Operand& op) {
   uint8_t reg = token_to_reg(op.token, prefix);
   uint8_t pair = token_to_pair(op.token, prefix);
   bool has_prefix = prefix != 0;
+  // INC/DEC r
   if (reg != REG_INVALID) {
     bool has_index = has_prefix && reg == REG_M;
     uint8_t code = (is_inc ? 0004 : 0005) | reg << 3;
     return write_prefix_op_index<API>(addr, prefix, code, op.value, has_index);
+  // INC/DEC rr
   } else if (pair != PAIR_INVALID) {
-    uint8_t code = is_inc ? 0003 : 0013; // INC/DEC rr
+    uint8_t code = is_inc ? 0003 : 0013;
     return write_prefix_op<API>(addr, prefix, code | pair << 4);
+  // ?
   } else {
     print_operand_error<API>(op);
     return 0;
@@ -259,17 +262,21 @@ uint8_t encode_inc_dec(uint16_t addr, bool is_inc, Operand& op) {
 
 template <typename API>
 uint8_t encode_ex(uint16_t addr, Operand& op1, Operand& op2) {
+  // EX (SP),HL
   if (op1.token == (TOK_SP | TOK_INDIRECT)) {
     uint8_t prefix = token_to_prefix(op2.token);
     if (token_to_pair(op2.token, prefix) != PAIR_HL) {
       print_operand_error<API>(op2);
       return 0;
     }
-    return write_prefix_op<API>(addr, prefix, 0xE3); // EX (SP),HL
+    return write_prefix_op<API>(addr, prefix, 0xE3);
+  // EX DE,HL
   } else if (op1.token == TOK_DE && op2.token == TOK_HL) {
-    return write_op<API>(addr, 0xEB); // EX DE,HL
+    return write_op<API>(addr, 0xEB);
+  // EX AF,AF
   } else if (op1.token == TOK_AF && (op2.token == TOK_AF || op2.token == TOK_INVALID)) {
-    return write_op<API>(addr, 0x08); // EX AF,AF
+    return write_op<API>(addr, 0x08);
+  // ?
   } else {
     print_operand_error<API>(op1);
     return 0;
@@ -278,11 +285,14 @@ uint8_t encode_ex(uint16_t addr, Operand& op1, Operand& op2) {
 
 template <typename API>
 uint8_t encode_im(uint16_t addr, Operand& op) {
-  if (op.token == TOK_INTEGER && op.value < 3) {
+  // IM 0/1/2
+  if (op.token == TOK_IMMEDIATE && op.value < 3) {
     static constexpr const uint8_t IM[] = { 0x46, 0x56, 0x5E };
     return write_prefix_op<API>(addr, PREFIX_ED, IM[op.value]);
+  // IM ?
   } else if (op.token == TOK_UNDEFINED) {
     return write_prefix_op<API>(addr, PREFIX_ED, 0x4E);
+  // ?
   } else {
     print_operand_error<API>(op);
     return 0;
@@ -291,9 +301,11 @@ uint8_t encode_im(uint16_t addr, Operand& op) {
 
 template <typename API>
 uint8_t encode_in_out(uint16_t addr, bool is_in, Operand& data, Operand& port) {
-  if (data.token == TOK_A && port.token == (TOK_INTEGER | TOK_INDIRECT)) {
-    uint8_t code = is_in ? 0333 : 0323; // IN A,(n) / OUT (n),A
+  // IN A,(n) / OUT (n),A
+  if (data.token == TOK_A && port.token == (TOK_IMM_IND)) {
+    uint8_t code = is_in ? 0333 : 0323;
     return write_op_byte<API>(addr, code, port.value);
+  // IN r,(C) / OUT (C),r
   } else if (port.token == (TOK_C | TOK_INDIRECT)) {
     uint8_t reg = token_to_reg(data.token);
     if (reg == REG_INVALID || reg == REG_M) {
@@ -302,6 +314,7 @@ uint8_t encode_in_out(uint16_t addr, bool is_in, Operand& data, Operand& port) {
     }
     uint8_t code = (is_in ? 0100 : 0101) | reg << 3;
     return write_prefix_op<API>(addr, PREFIX_ED, code);
+  // ?
   } else {
     print_operand_error<API>(port);
     return 0;
@@ -310,9 +323,11 @@ uint8_t encode_in_out(uint16_t addr, bool is_in, Operand& data, Operand& port) {
 
 template <typename API>
 uint8_t encode_djnz_jr(uint16_t addr, uint8_t code, Operand& op) {
+  // DJNZ/JR imm16
   int16_t disp = op.value - (addr + 2);
-  if (op.token == TOK_INTEGER && disp >= -128 && disp <= 127) {
+  if (op.token == TOK_IMMEDIATE && disp >= -128 && disp <= 127) {
     return write_op_byte<API>(addr, code, disp);
+  // ?
   } else {
     print_operand_error<API>(op);
     return 0;
@@ -321,8 +336,10 @@ uint8_t encode_djnz_jr(uint16_t addr, uint8_t code, Operand& op) {
 
 template <typename API>
 uint8_t encode_jr(uint16_t addr, Operand& op1, Operand& op2) {
+  // JR nn
   if (op2.token == TOK_INVALID) {
     return encode_djnz_jr<API>(addr, 0x18, op1);
+  // JR cc,nn
   } else {
     uint8_t cond = token_to_cond(op1.token);
     if (cond > 3) {
@@ -339,52 +356,53 @@ uint8_t encode_ld(uint16_t addr, Operand& dst, Operand& src) {
   // Special cases for destination A
   if (dst.token == TOK_A) {
     switch (src.token) {
-    case TOK_I:
-      return write_prefix_op<API>(addr, PREFIX_ED, 0x57); // LD A,I
-    case TOK_R:
-      return write_prefix_op<API>(addr, PREFIX_ED, 0x5F); // LD A,R
-    case TOK_BC | TOK_INDIRECT:
-      return write_op<API>(addr, 0x0A); // LD A,(BC)
-    case TOK_DE | TOK_INDIRECT:
-      return write_op<API>(addr, 0x1A); // LD A,(DE)
-    case TOK_INTEGER | TOK_INDIRECT:
-      return write_op_word<API>(addr, 0x3A, src.value); // LD A,(nn)
+    case TOK_I: // LD A,I
+      return write_prefix_op<API>(addr, PREFIX_ED, 0x57);
+    case TOK_R: // LD A,R
+      return write_prefix_op<API>(addr, PREFIX_ED, 0x5F);
+    case TOK_BC_IND: // LD A,(BC)
+      return write_op<API>(addr, 0x0A);
+    case TOK_DE_IND: // LD A,(DE)
+      return write_op<API>(addr, 0x1A);
+    case TOK_IMM_IND: // LD A,(nn)
+      return write_op_word<API>(addr, 0x3A, src.value);
     }
   }
 
   // Special cases for source A
   if (src.token == TOK_A) {
     switch (dst.token) {
-    case TOK_I:
-      return write_prefix_op<API>(addr, PREFIX_ED, 0x47); // LD I,A
-    case TOK_R:
-      return write_prefix_op<API>(addr, PREFIX_ED, 0x4F); // LD R,A
-    case TOK_BC | TOK_INDIRECT:
-      return write_op<API>(addr, 0x02); // LD (BC),A
-    case TOK_DE | TOK_INDIRECT:
-      return write_op<API>(addr, 0x12); // LD (DE),A
-    case TOK_INTEGER | TOK_INDIRECT:
-      return write_op_word<API>(addr, 0x32, dst.value); // LD (nn),A
+    case TOK_I: // LD I,A
+      return write_prefix_op<API>(addr, PREFIX_ED, 0x47);
+    case TOK_R: // LD R,A
+      return write_prefix_op<API>(addr, PREFIX_ED, 0x4F);
+    case TOK_BC_IND: // LD (BC),A
+      return write_op<API>(addr, 0x02);
+    case TOK_DE_IND: // LD (DE),A
+      return write_op<API>(addr, 0x12);
+    case TOK_IMM_IND: // LD (nn),A
+      return write_op_word<API>(addr, 0x32, dst.value);
     }
   }
 
   // Special cases for destination HL/IX/IY
   uint8_t dst_prefix = token_to_prefix(dst.token);
   uint8_t dst_pair = token_to_pair(dst.token, dst_prefix);
-  if (dst_pair == PAIR_HL) { // HL, IX, IY
-    if (src.token == (TOK_INTEGER | TOK_INDIRECT)) { // LD HL,(nn)
-      return write_prefix_op_word<API>(addr, dst_prefix, 0x2A, src.value);
-    }
+  // LD HL/IX/IY,(nn)
+  if (dst_pair == PAIR_HL && src.token == (TOK_IMM_IND)) {
+    return write_prefix_op_word<API>(addr, dst_prefix, 0x2A, src.value);
   }
 
   // Special cases for source HL/IX/IY
   uint8_t src_prefix = token_to_prefix(src.token);
   uint8_t src_pair = token_to_pair(src.token, src_prefix);
-  if (src_pair == PAIR_HL) { // HL, IX, IY
-    if (dst.token == (TOK_INTEGER | TOK_INDIRECT)) { // LD (nn),HL
+  if (src_pair == PAIR_HL) {
+    // LD (nn),HL/IX/IY
+    if (dst.token == (TOK_IMM_IND)) {
       return write_prefix_op_word<API>(addr, src_prefix, 0x22, dst.value);
+    // LD SP,HL/IX/IY
     } else if (dst.token == TOK_SP) {
-      return write_prefix_op<API>(addr, src_prefix, 0xF9); // LD SP,HL
+      return write_prefix_op<API>(addr, src_prefix, 0xF9);
     }
   }
 
@@ -393,6 +411,7 @@ uint8_t encode_ld(uint16_t addr, Operand& dst, Operand& src) {
   if (dst_reg != REG_INVALID) {
     // Destination is any primary register
     uint8_t src_reg = token_to_reg(src.token, src_prefix);
+    // LD r,r
     if (src_reg != REG_INVALID) {
       // Source is any primary register
       bool src_is_m = src_reg == REG_M;
@@ -408,36 +427,38 @@ uint8_t encode_ld(uint16_t addr, Operand& dst, Operand& src) {
         bool has_prefix = prefix != 0;
         bool has_index = has_prefix && (dst_is_m || src_is_m);
         uint8_t disp = dst_reg == REG_M ? dst.value : src.value;
-        uint8_t code = 0100 | dst_reg << 3 | src_reg; // LD r,r
+        uint8_t code = 0100 | dst_reg << 3 | src_reg;
         return write_prefix_op_index<API>(addr, prefix, code, disp, has_index);
       }
-    } else if (src.token == TOK_INTEGER) {
+    // LD r,n
+    } else if (src.token == TOK_IMMEDIATE) {
       // Source is 1-byte integer
       uint8_t& prefix = dst_prefix;
       bool has_prefix = prefix != 0;
       bool has_index = has_prefix && dst_reg == REG_M;
-      uint8_t code = 0006 | dst_reg << 3; // LD r,n
+      uint8_t code = 0006 | dst_reg << 3;
       uint8_t size = write_prefix_op_index<API>(addr, prefix, code, dst.value, has_index);
       API::write_byte(addr + size, src.value & 0xFF);
       return size + 1;
     }
   } else if (dst_pair != PAIR_INVALID) {
-    if (src.token == TOK_INTEGER) {
-      uint8_t code = 0001 | dst_pair << 4; // LD rr,nn
+    // LD rr,nn
+    if (src.token == TOK_IMMEDIATE) {
+      uint8_t code = 0001 | dst_pair << 4;
       return write_prefix_op_word<API>(addr, dst_prefix, code, src.value);
-    } else if (src.token == (TOK_INTEGER | TOK_INDIRECT)) {
+    // LD rr,(nn)
+    } else if (src.token == (TOK_IMM_IND)) {
       // NOTE LD HL/IX/IY,(nn) already handled by special case; only BC/DE/SP
-      uint8_t code = 0113 | dst_pair << 4; // LD rr,(nn)
+      uint8_t code = 0113 | dst_pair << 4;
       return write_prefix_op_word<API>(addr, PREFIX_ED, code, src.value);
     }
-  } else if (src_pair != PAIR_INVALID) {
-    if (dst.token == (TOK_INTEGER | TOK_INDIRECT)) {
-      // NOTE LD (nn),HL/IX/IY already handled by special case; only BC/DE/SP
-      uint8_t code = 0103 | src_pair << 4; // LD (nn),rr
-      return write_prefix_op_word<API>(addr, PREFIX_ED, code, dst.value);
-    }
+  // LD (nn),rr
+  } else if (src_pair != PAIR_INVALID && dst.token == (TOK_IMM_IND)) {
+    // NOTE LD (nn),HL/IX/IY already handled by special case; only BC/DE/SP
+    uint8_t code = 0103 | src_pair << 4;
+    return write_prefix_op_word<API>(addr, PREFIX_ED, code, dst.value);
   }
-
+  // ?
   print_operand_error<API>(src);
   return 0;
 }
@@ -456,21 +477,23 @@ uint8_t encode_push_pop(uint16_t addr, bool is_push, Operand& op) {
 
 template <typename API>
 uint8_t encode_ret(uint16_t addr, Operand& op) {
+  // RET
   if (op.token == TOK_INVALID) {
-    return write_op<API>(addr, 0xC9); // RET
+    return write_op<API>(addr, 0xC9);
+  // RET cc
   } else {
     uint8_t cond = token_to_cond(op.token);
     if (cond == COND_INVALID) {
       print_operand_error<API>(op);
       return 0;
     }
-    return write_op<API>(addr, 0300 | cond << 3); // RET cc
+    return write_op<API>(addr, 0300 | cond << 3);
   }
 }
 
 template <typename API>
 uint8_t encode_rst(uint16_t addr, Operand& op) {
-  if (op.token == TOK_INTEGER && (op.value & 0307) == 0) {
+  if (op.token == TOK_IMMEDIATE && (op.value & 0307) == 0) {
     return write_op<API>(addr, 0307 | op.value);
   } else {
     print_operand_error<API>(op);

@@ -40,10 +40,10 @@ void parse_operand(uCLI::Tokens tokens, Operand& opr) {
   uint16_t value;
   if (is_string) {
     uMON_FMT_ERROR(strlen(opr_str) > 1, "char", opr_str);
-    opr.token = TOK_INTEGER;
+    opr.token = TOK_IMMEDIATE;
     opr.value = opr_str[0];
   } else if (uMon::parse_unsigned(opr_str, value)) {
-    opr.token = TOK_INTEGER;
+    opr.token = TOK_IMMEDIATE;
     opr.value = value;
   } else {
     opr.token = index_of_pgm_string(TOK_STR, opr_str);
