@@ -39,9 +39,10 @@ uint8_t write_prefix_op(uint16_t addr, uint8_t prefix, uint8_t code) {
 }
 
 template <typename API>
-uint8_t write_prefix_op_index(uint16_t addr, uint8_t prefix, uint8_t code, uint8_t index, bool has_index) {
+uint8_t write_pfx_code_idx(uint16_t addr, uint8_t prefix, uint8_t code, Operand& index) {
+  bool has_index = index.token == TOK_IX_IND || index.token == TOK_IY_IND;
   uint8_t size = write_prefix_op<API>(addr, prefix, code);
-  if (has_index) API::write_byte(addr + size, index);
+  if (has_index) API::write_byte(addr + size, index.value);
   return has_index + size;
 }
 
@@ -125,9 +126,8 @@ uint8_t encode_alu_a(uint16_t addr, uint8_t mne, Operand& src) {
       print_operand_error<API>(src);
       return 0;
     }
-    bool has_index = prefix != 0 && reg == REG_M;
     uint8_t code = 0200 | (alu << 3) | reg;
-    return write_prefix_op_index<API>(addr, prefix, code, src.value, has_index);
+    return write_pfx_code_idx<API>(addr, prefix, code, src);
   }
 }
 
@@ -243,12 +243,10 @@ uint8_t encode_inc_dec(uint16_t addr, bool is_inc, Operand& op) {
   uint8_t prefix = token_to_prefix(op.token);
   uint8_t reg = token_to_reg(op.token, prefix);
   uint8_t pair = token_to_pair(op.token, prefix);
-  bool has_prefix = prefix != 0;
   // INC/DEC r
   if (reg != REG_INVALID) {
-    bool has_index = has_prefix && reg == REG_M;
     uint8_t code = (is_inc ? 0004 : 0005) | reg << 3;
-    return write_prefix_op_index<API>(addr, prefix, code, op.value, has_index);
+    return write_pfx_code_idx<API>(addr, prefix, code, op);
   // INC/DEC rr
   } else if (pair != PAIR_INVALID) {
     uint8_t code = is_inc ? 0003 : 0013;
@@ -409,11 +407,9 @@ uint8_t encode_ld(uint16_t addr, Operand& dst, Operand& src) {
   // Catch-all cases for any register/pair
   uint8_t dst_reg = token_to_reg(dst.token, dst_prefix);
   if (dst_reg != REG_INVALID) {
-    // Destination is any primary register
-    uint8_t src_reg = token_to_reg(src.token, src_prefix);
     // LD r,r
+    uint8_t src_reg = token_to_reg(src.token, src_prefix);
     if (src_reg != REG_INVALID) {
-      // Source is any primary register
       bool src_is_m = src_reg == REG_M;
       bool dst_is_m = dst_reg == REG_M;
       bool dst_in_src = token_to_reg(dst.token, src_prefix) != REG_INVALID;
@@ -424,21 +420,15 @@ uint8_t encode_ld(uint16_t addr, Operand& dst, Operand& src) {
         || (dst_is_m && !src_is_m && src_prefix == 0)
         || (!src_is_m && !dst_is_m && (dst_in_src || src_in_dst))) {
         uint8_t prefix = dst_prefix | src_prefix;
-        bool has_prefix = prefix != 0;
-        bool has_index = has_prefix && (dst_is_m || src_is_m);
-        uint8_t disp = dst_reg == REG_M ? dst.value : src.value;
         uint8_t code = 0100 | dst_reg << 3 | src_reg;
-        return write_prefix_op_index<API>(addr, prefix, code, disp, has_index);
+        Operand& index = dst_reg == REG_M ? dst : src;
+        return write_pfx_code_idx<API>(addr, prefix, code, index);
       }
     // LD r,n
     } else if (src.token == TOK_IMMEDIATE) {
-      // Source is 1-byte integer
-      uint8_t& prefix = dst_prefix;
-      bool has_prefix = prefix != 0;
-      bool has_index = has_prefix && dst_reg == REG_M;
       uint8_t code = 0006 | dst_reg << 3;
-      uint8_t size = write_prefix_op_index<API>(addr, prefix, code, dst.value, has_index);
-      API::write_byte(addr + size, src.value & 0xFF);
+      uint8_t size = write_pfx_code_idx<API>(addr, dst_prefix, code, dst);
+      API::write_byte(addr + size, src.value);
       return size + 1;
     }
   } else if (dst_pair != PAIR_INVALID) {
