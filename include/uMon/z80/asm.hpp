@@ -395,14 +395,18 @@ uint8_t encode_ld(uint16_t addr, Operand& dst, Operand& src) {
     uint8_t src_reg = token_to_reg(src.token, src_prefix);
     if (src_reg != REG_INVALID) {
       // Source is any primary register
-      if (!(src_reg == REG_M && dst_prefix != 0)
-        && !(dst_reg == REG_M && src_prefix != 0)
-        && !(src_reg == REG_M && dst_reg == REG_M)
-        && (src_prefix ^ dst_prefix) != (PREFIX_IX ^ PREFIX_IY)
-        ) {
-        uint8_t prefix = dst_prefix != 0 ? dst_prefix : src_prefix;
+      bool src_is_m = src_reg == REG_M;
+      bool dst_is_m = dst_reg == REG_M;
+      bool dst_in_src = token_to_reg(dst.token, src_prefix) != REG_INVALID;
+      bool src_in_dst = token_to_reg(src.token, dst_prefix) != REG_INVALID;
+      // - only one can be (HL/IX/IY) and other can't be IXH/IXL/IYH/IYL
+      // - H/L, IXH/IXL, IYH/IYL can't be mixed; prefix affects both regs
+      if ((src_is_m && !dst_is_m && dst_prefix == 0)
+        || (dst_is_m && !src_is_m && src_prefix == 0)
+        || (!src_is_m && !dst_is_m && (dst_in_src || src_in_dst))) {
+        uint8_t prefix = dst_prefix | src_prefix;
         bool has_prefix = prefix != 0;
-        bool has_index = has_prefix && (dst_reg == REG_M || src_reg == REG_M);
+        bool has_index = has_prefix && (dst_is_m || src_is_m);
         uint8_t disp = dst_reg == REG_M ? dst.value : src.value;
         uint8_t code = 0100 | dst_reg << 3 | src_reg; // LD r,r
         return write_prefix_op_index<API>(addr, prefix, code, disp, has_index);
