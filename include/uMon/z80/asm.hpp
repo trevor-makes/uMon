@@ -19,6 +19,19 @@ void print_operand_error(Operand& op) {
 }
 
 template <typename API>
+uint8_t write_op(uint16_t addr, uint8_t code) {
+  API::write_byte(addr, code);
+  return 1;
+}
+
+template <typename API>
+uint8_t write_prefix_op(uint16_t addr, uint8_t prefix, uint8_t code) {
+  bool has_prefix = prefix != 0;
+  if (has_prefix) API::write_byte(addr++, prefix);
+  return has_prefix + write_op<API>(addr, code);
+}
+
+template <typename API>
 uint8_t write_op_word(uint16_t addr, uint8_t code, uint16_t value) {
   API::write_byte(addr, code);
   API::write_byte(addr + 1, value & 0xFF);
@@ -129,14 +142,11 @@ uint8_t encode_alu_hl(uint16_t addr, uint8_t mne, Operand& dst, Operand& src) {
   }
   // Handle ADD, ADC, SBC
   if (mne == MNE_ADD) {
-    if (prefix != 0) API::write_byte(addr++, prefix);
-    API::write_byte(addr, 0011 | (src_pair << 4));
-    return prefix != 0 ? 2 : 1;
+    uint8_t code = 0011 | (src_pair << 4); // ADD HL,rr
+    return write_prefix_op<API>(addr, prefix, code);
   } else if (prefix == 0 && (mne == MNE_ADC || mne == MNE_SBC)) {
-    uint8_t code = mne == MNE_ADC ? 0112 : 0102;
-    API::write_byte(addr, PREFIX_ED);
-    API::write_byte(addr + 1, code | (src_pair << 4));
-    return 2;
+    uint8_t code = mne == MNE_ADC ? 0112 : 0102; // ADC/SBC HL,rr
+    return write_prefix_op<API>(addr, PREFIX_ED, code | src_pair << 4);
   } else {
     print_operand_error<API>(dst);
     return 0;
@@ -170,9 +180,7 @@ uint8_t encode_cb(uint16_t addr, uint8_t code, Operand& op) {
     API::write_byte(addr + 3, code | reg);
     return 4;
   } else {
-    API::write_byte(addr, PREFIX_CB);
-    API::write_byte(addr + 1, code | reg);
-    return 2;
+    return write_prefix_op<API>(addr, PREFIX_CB, code | reg);
   }
 }
 
@@ -193,9 +201,8 @@ uint8_t encode_bit(uint16_t addr, uint8_t mne, Operand& op1, Operand& op2) {
   }
   uint8_t bit = op1.value << 3;
   // NOTE mne assumed to be valid
-  uint8_t op = index_of(CB_MNE, mne) << 6;
-  uint8_t code = op | bit;
-  return encode_cb<API>(addr, code, op2);
+  uint8_t code = index_of(CB_MNE, mne) << 6;
+  return encode_cb<API>(addr, code | bit, op2);
 }
 
 template <typename API>
@@ -213,10 +220,8 @@ uint8_t encode_call_jp(uint16_t addr, bool is_call, Operand& op1, Operand& op2) 
     } else if (!is_call) { // JP only
       uint8_t prefix = token_to_prefix(op1.token);
       uint8_t reg = token_to_reg(op1.token, prefix);
-      if (reg == REG_M) {
-        if (prefix != 0) API::write_byte(addr++, prefix);
-        API::write_byte(addr, 0xE9); // JP (HL)
-        return prefix != 0 ? 2 : 1;
+      if (reg == REG_M) { // (HL), (IX), (IY)
+        return write_prefix_op<API>(addr, prefix, 0xE9); // JP (HL)
       }
     }
   }
@@ -238,10 +243,8 @@ uint8_t encode_inc_dec(uint16_t addr, bool is_inc, Operand& op) {
     if (has_index) API::write_byte(addr + 1, op.value);
     return has_index ? 3 : has_prefix ? 2 : 1;
   } else if (pair != PAIR_INVALID) {
-    uint8_t code = is_inc ? 0003 : 0013;
-    if (has_prefix) API::write_byte(addr++, prefix);
-    API::write_byte(addr, code | (pair << 4));
-    return has_prefix ? 2 : 1;
+    uint8_t code = is_inc ? 0003 : 0013; // INC/DEC rr
+    return write_prefix_op<API>(addr, prefix, code | pair << 4);
   } else {
     print_operand_error<API>(op);
     return 0;
@@ -256,15 +259,11 @@ uint8_t encode_ex(uint16_t addr, Operand& op1, Operand& op2) {
       print_operand_error<API>(op2);
       return 0;
     }
-    if (prefix != 0) API::write_byte(addr++, prefix);
-    API::write_byte(addr, 0xE3);
-    return prefix != 0 ? 2 : 1;
+    return write_prefix_op<API>(addr, prefix, 0xE3); // EX (SP),HL
   } else if (op1.token == TOK_DE && op2.token == TOK_HL) {
-    API::write_byte(addr, 0xEB);
-    return 1;
+    return write_op<API>(addr, 0xEB); // EX DE,HL
   } else if (op1.token == TOK_AF && (op2.token == TOK_AF || op2.token == TOK_INVALID)) {
-    API::write_byte(addr, 0x08);
-    return 1;
+    return write_op<API>(addr, 0x08); // EX AF,AF
   } else {
     print_operand_error<API>(op1);
     return 0;
@@ -275,13 +274,9 @@ template <typename API>
 uint8_t encode_im(uint16_t addr, Operand& op) {
   if (op.token == TOK_INTEGER && op.value < 3) {
     static constexpr const uint8_t IM[] = { 0x46, 0x56, 0x5E };
-    API::write_byte(addr, PREFIX_ED);
-    API::write_byte(addr + 1, IM[op.value]);
-    return 2;
+    return write_prefix_op<API>(addr, PREFIX_ED, IM[op.value]);
   } else if (op.token == TOK_UNDEFINED) {
-    API::write_byte(addr, PREFIX_ED);
-    API::write_byte(addr + 1, 0x4E);
-    return 2;
+    return write_prefix_op<API>(addr, PREFIX_ED, 0x4E);
   } else {
     print_operand_error<API>(op);
     return 0;
@@ -301,9 +296,7 @@ uint8_t encode_in_out(uint16_t addr, bool is_in, Operand& data, Operand& port) {
       return 0;
     }
     uint8_t code = (is_in ? 0100 : 0101) | reg << 3;
-    API::write_byte(addr, PREFIX_ED);
-    API::write_byte(addr + 1, code);
-    return 2;
+    return write_prefix_op<API>(addr, PREFIX_ED, code);
   } else {
     print_operand_error<API>(port);
     return 0;
@@ -344,19 +337,13 @@ uint8_t encode_ld(uint16_t addr, Operand& dst, Operand& src) {
   if (dst.token == TOK_A) {
     switch (src.token) {
     case TOK_I:
-      API::write_byte(addr, PREFIX_ED);
-      API::write_byte(addr + 1, 0x57); // LD A,I
-      return 2;
+      return write_prefix_op<API>(addr, PREFIX_ED, 0x57); // LD A,I
     case TOK_R:
-      API::write_byte(addr, PREFIX_ED);
-      API::write_byte(addr + 1, 0x5F); // LD A,R
-      return 2;
+      return write_prefix_op<API>(addr, PREFIX_ED, 0x5F); // LD A,R
     case TOK_BC | TOK_INDIRECT:
-      API::write_byte(addr, 0x0A); // LD A,(BC)
-      return 1;
+      return write_op<API>(addr, 0x0A); // LD A,(BC)
     case TOK_DE | TOK_INDIRECT:
-      API::write_byte(addr, 0x1A); // LD A,(DE)
-      return 1;
+      return write_op<API>(addr, 0x1A); // LD A,(DE)
     case TOK_INTEGER | TOK_INDIRECT:
       return write_op_word<API>(addr, 0x3A, src.value); // LD A,(nn)
     }
@@ -366,19 +353,13 @@ uint8_t encode_ld(uint16_t addr, Operand& dst, Operand& src) {
   if (src.token == TOK_A) {
     switch (dst.token) {
     case TOK_I:
-      API::write_byte(addr, PREFIX_ED);
-      API::write_byte(addr + 1, 0x47); // LD I,A
-      return 2;
+      return write_prefix_op<API>(addr, PREFIX_ED, 0x47); // LD I,A
     case TOK_R:
-      API::write_byte(addr, PREFIX_ED);
-      API::write_byte(addr + 1, 0x4F); // LD R,A
-      return 2;
+      return write_prefix_op<API>(addr, PREFIX_ED, 0x4F); // LD R,A
     case TOK_BC | TOK_INDIRECT:
-      API::write_byte(addr, 0x02); // LD (BC),A
-      return 1;
+      return write_op<API>(addr, 0x02); // LD (BC),A
     case TOK_DE | TOK_INDIRECT:
-      API::write_byte(addr, 0x12); // LD (DE),A
-      return 1;
+      return write_op<API>(addr, 0x12); // LD (DE),A
     case TOK_INTEGER | TOK_INDIRECT:
       return write_op_word<API>(addr, 0x32, dst.value); // LD (nn),A
     }
@@ -397,14 +378,10 @@ uint8_t encode_ld(uint16_t addr, Operand& dst, Operand& src) {
   uint8_t src_prefix = token_to_prefix(src.token);
   uint8_t src_pair = token_to_pair(src.token, src_prefix);
   if (src_pair == PAIR_HL) { // HL, IX, IY
-    uint8_t& prefix = src_prefix;
-    bool has_prefix = prefix != 0;
     if (dst.token == (TOK_INTEGER | TOK_INDIRECT)) { // LD (nn),HL
-      return write_prefix_op_word<API>(addr, prefix, 0x22, dst.value);
+      return write_prefix_op_word<API>(addr, src_prefix, 0x22, dst.value);
     } else if (dst.token == TOK_SP) {
-      if (has_prefix) API::write_byte(addr++, prefix);
-      API::write_byte(addr, 0xF9); // LD SP,HL
-      return has_prefix ? 2 : 1;
+      return write_prefix_op<API>(addr, src_prefix, 0xF9); // LD SP,HL
     }
   }
 
@@ -465,39 +442,34 @@ uint8_t encode_ld(uint16_t addr, Operand& dst, Operand& src) {
 
 template <typename API>
 uint8_t encode_push_pop(uint16_t addr, bool is_push, Operand& op) {
-  uint8_t code = is_push ? 0305 : 0301;
+  uint8_t code = is_push ? 0305 : 0301; // PUSH/POP rr
   uint8_t prefix = token_to_prefix(op.token);
   uint8_t pair = token_to_pair(op.token, prefix, true);
   if (pair == PAIR_INVALID) {
     print_operand_error<API>(op);
     return 0;
   }
-  if (prefix != 0) API::write_byte(addr++, prefix);
-  API::write_byte(addr, code | pair << 4);
-  return prefix != 0 ? 2 : 1;
+  return write_prefix_op<API>(addr, prefix, code | pair << 4);
 }
 
 template <typename API>
 uint8_t encode_ret(uint16_t addr, Operand& op) {
   if (op.token == TOK_INVALID) {
-    API::write_byte(addr, 0xC9);
-    return 1;
+    return write_op<API>(addr, 0xC9); // RET
   } else {
     uint8_t cond = token_to_cond(op.token);
     if (cond == COND_INVALID) {
       print_operand_error<API>(op);
       return 0;
     }
-    API::write_byte(addr, 0300 | (cond << 3));
-    return 1;
+    return write_op<API>(addr, 0300 | cond << 3); // RET cc
   }
 }
 
 template <typename API>
 uint8_t encode_rst(uint16_t addr, Operand& op) {
   if (op.token == TOK_INTEGER && (op.value & 0307) == 0) {
-    API::write_byte(addr, 0307 | op.value);
-    return 1;
+    return write_op<API>(addr, 0307 | op.value);
   } else {
     print_operand_error<API>(op);
     return 0;
@@ -520,48 +492,33 @@ uint8_t impl_asm(uint16_t addr, Instruction inst) {
   case MNE_CALL:
     return encode_call_jp<API>(addr, true, op1, op2);
   case MNE_CCF:
-    API::write_byte(addr, 0x3F);
-    return 1;
+    return write_op<API>(addr, 0x3F);
   case MNE_CPD:
-    API::write_byte(addr, PREFIX_ED);
-    API::write_byte(addr + 1, 0xA9);
-    return 2;
+    return write_prefix_op<API>(addr, PREFIX_ED, 0xA9);
   case MNE_CPDR:
-    API::write_byte(addr, PREFIX_ED);
-    API::write_byte(addr + 1, 0xB9);
-    return 2;
+    return write_prefix_op<API>(addr, PREFIX_ED, 0xB9);
   case MNE_CPI:
-    API::write_byte(addr, PREFIX_ED);
-    API::write_byte(addr + 1, 0xA1);
-    return 2;
+    return write_prefix_op<API>(addr, PREFIX_ED, 0xA1);
   case MNE_CPIR:
-    API::write_byte(addr, PREFIX_ED);
-    API::write_byte(addr + 1, 0xB1);
-    return 2;
+    return write_prefix_op<API>(addr, PREFIX_ED, 0xB1);
   case MNE_CPL:
-    API::write_byte(addr, 0x2F);
-    return 1;
+    return write_op<API>(addr, 0x2F);
   case MNE_DAA:
-    API::write_byte(addr, 0x27);
-    return 1;
+    return write_op<API>(addr, 0x27);
   case MNE_DEC:
     return encode_inc_dec<API>(addr, false, op1);
   case MNE_DI:
-    API::write_byte(addr, 0xF3);
-    return 1;
+    return write_op<API>(addr, 0xF3);
   case MNE_DJNZ:
     return encode_djnz_jr<API>(addr, 0x10, op1);
   case MNE_EI:
-    API::write_byte(addr, 0xFB);
-    return 1;
+    return write_op<API>(addr, 0xFB);
   case MNE_EX:
     return encode_ex<API>(addr, op1, op2);
   case MNE_EXX:
-    API::write_byte(addr, 0xD9);
-    return 1;
+    return write_op<API>(addr, 0xD9);
   case MNE_HALT:
-    API::write_byte(addr, 0x76);
-    return 1;
+    return write_op<API>(addr, 0x76);
   case MNE_IM:
     return encode_im<API>(addr, op1);
   case MNE_IN:
@@ -569,21 +526,13 @@ uint8_t impl_asm(uint16_t addr, Instruction inst) {
   case MNE_INC:
     return encode_inc_dec<API>(addr, true, op1);
   case MNE_IND:
-    API::write_byte(addr, PREFIX_ED);
-    API::write_byte(addr + 1, 0xAA);
-    return 2;
+    return write_prefix_op<API>(addr, PREFIX_ED, 0xAA);
   case MNE_INDR:
-    API::write_byte(addr, PREFIX_ED);
-    API::write_byte(addr + 1, 0xBA);
-    return 2;
+    return write_prefix_op<API>(addr, PREFIX_ED, 0xBA);
   case MNE_INI:
-    API::write_byte(addr, PREFIX_ED);
-    API::write_byte(addr + 1, 0xA2);
-    return 2;
+    return write_prefix_op<API>(addr, PREFIX_ED, 0xA2);
   case MNE_INIR:
-    API::write_byte(addr, PREFIX_ED);
-    API::write_byte(addr + 1, 0xB2);
-    return 2;
+    return write_prefix_op<API>(addr, PREFIX_ED, 0xB2);
   case MNE_JP:
     return encode_call_jp<API>(addr, false, op1, op2);
   case MNE_JR:
@@ -591,46 +540,27 @@ uint8_t impl_asm(uint16_t addr, Instruction inst) {
   case MNE_LD:
     return encode_ld<API>(addr, op1, op2);
   case MNE_LDD:
-    API::write_byte(addr, PREFIX_ED);
-    API::write_byte(addr + 1, 0xA8);
-    return 2;
+    return write_prefix_op<API>(addr, PREFIX_ED, 0xA8);
   case MNE_LDDR:
-    API::write_byte(addr, PREFIX_ED);
-    API::write_byte(addr + 1, 0xB8);
-    return 2;
+    return write_prefix_op<API>(addr, PREFIX_ED, 0xB8);
   case MNE_LDI:
-    API::write_byte(addr, PREFIX_ED);
-    API::write_byte(addr + 1, 0xA0);
-    return 2;
+    return write_prefix_op<API>(addr, PREFIX_ED, 0xA0);
   case MNE_LDIR:
-    API::write_byte(addr, PREFIX_ED);
-    API::write_byte(addr + 1, 0xB0);
-    return 2;
+    return write_prefix_op<API>(addr, PREFIX_ED, 0xB0);
   case MNE_NEG:
-    API::write_byte(addr, PREFIX_ED);
-    API::write_byte(addr + 1, 0x44);
-    return 2;
+    return write_prefix_op<API>(addr, PREFIX_ED, 0x44);
   case MNE_NOP:
-    API::write_byte(addr, 0x00);
-    return 1;
+    return write_op<API>(addr, 0x00);
   case MNE_OTDR:
-    API::write_byte(addr, PREFIX_ED);
-    API::write_byte(addr + 1, 0xBB);
-    return 2;
+    return write_prefix_op<API>(addr, PREFIX_ED, 0xBB);
   case MNE_OTIR:
-    API::write_byte(addr, PREFIX_ED);
-    API::write_byte(addr + 1, 0xB3);
-    return 2;
+    return write_prefix_op<API>(addr, PREFIX_ED, 0xB3);
   case MNE_OUT:
     return encode_in_out<API>(addr, false, op2, op1);
   case MNE_OUTD:
-    API::write_byte(addr, PREFIX_ED);
-    API::write_byte(addr + 1, 0xAB);
-    return 2;
+    return write_prefix_op<API>(addr, PREFIX_ED, 0xAB);
   case MNE_OUTI:
-    API::write_byte(addr, PREFIX_ED);
-    API::write_byte(addr + 1, 0xA3);
-    return 2;
+    return write_prefix_op<API>(addr, PREFIX_ED, 0xA3);
   case MNE_POP:
     return encode_push_pop<API>(addr, false, op1);
   case MNE_PUSH:
@@ -638,38 +568,25 @@ uint8_t impl_asm(uint16_t addr, Instruction inst) {
   case MNE_RET:
     return encode_ret<API>(addr, op1);
   case MNE_RETI:
-    API::write_byte(addr, PREFIX_ED);
-    API::write_byte(addr + 1, 0x4D);
-    return 2;
+    return write_prefix_op<API>(addr, PREFIX_ED, 0x4D);
   case MNE_RETN:
-    API::write_byte(addr, PREFIX_ED);
-    API::write_byte(addr + 1, 0x45);
-    return 2;
+    return write_prefix_op<API>(addr, PREFIX_ED, 0x45);
   case MNE_RLA:
-    API::write_byte(addr, 0x17);
-    return 1;
+    return write_op<API>(addr, 0x17);
   case MNE_RLCA:
-    API::write_byte(addr, 0x07);
-    return 1;
+    return write_op<API>(addr, 0x07);
   case MNE_RLD:
-    API::write_byte(addr, PREFIX_ED);
-    API::write_byte(addr + 1, 0x6F);
-    return 2;
+    return write_prefix_op<API>(addr, PREFIX_ED, 0x6F);
   case MNE_RRA:
-    API::write_byte(addr, 0x1F);
-    return 1;
+    return write_op<API>(addr, 0x1F);
   case MNE_RRCA:
-    API::write_byte(addr, 0x0F);
-    return 1;
+    return write_op<API>(addr, 0x0F);
   case MNE_RRD:
-    API::write_byte(addr, PREFIX_ED);
-    API::write_byte(addr + 1, 0x67);
-    return 2;
+    return write_prefix_op<API>(addr, PREFIX_ED, 0x67);
   case MNE_RST:
     return encode_rst<API>(addr, op1);
   case MNE_SCF:
-    API::write_byte(addr, 0x37);
-    return 1;
+    return write_op<API>(addr, 0x37);
   }
   return 0;
 }
