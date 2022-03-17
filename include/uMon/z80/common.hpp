@@ -11,6 +11,16 @@ constexpr const uint8_t PREFIX_IY = 0xFD;
 constexpr const uint8_t PREFIX_ED = 0xED;
 constexpr const uint8_t PREFIX_CB = 0xCB;
 
+template <typename T, uint8_t N>
+uint8_t index_of(const T (&table)[N], T value) {
+  for (uint8_t i = 0; i < N; ++i) {
+    if (table[i] == value) {
+      return i;
+    }
+  }
+  return N;
+}
+
 // ============================================================================
 // Mnemonic Definitions
 // ============================================================================
@@ -162,6 +172,18 @@ const char* const TOK_STR[] PROGMEM = {
 #undef ITEM
 };
 
+// Convert token to IX/IY prefix
+uint8_t token_to_prefix(uint8_t token) {
+  switch (token & TOK_MASK) {
+  case TOK_IX: case TOK_IXH: case TOK_IXL:
+    return PREFIX_IX;
+  case TOK_IY: case TOK_IYH: case TOK_IYL:
+    return PREFIX_IY;
+  default:
+    return 0;
+  }
+}
+
 // ============================================================================
 // Register Encodings
 // ============================================================================
@@ -204,6 +226,26 @@ REG_LIST
 #undef ITEM
 };
 
+// Convert token to primary register
+uint8_t token_to_reg(uint8_t token, uint8_t prefix = 0) {
+  switch (prefix) {
+  case PREFIX_IX: return index_of(REG_TOK_IX, token);
+  case PREFIX_IY: return index_of(REG_TOK_IY, token);
+  default: return index_of(REG_TOK, token);
+  }
+}
+
+// Translate reg to token, optionally with IX/IY prefix, or (HL)
+// (IX/IY+disp) should be handled with read_index_ind instead
+uint8_t reg_to_token(uint8_t reg, uint8_t prefix) {
+  if (prefix != 0 && reg == REG_H) {
+    return prefix == PREFIX_IX ? TOK_IXH : TOK_IYH;
+  } else if (prefix != 0 && reg == REG_L) {
+    return prefix == PREFIX_IX ? TOK_IXL : TOK_IYL;
+  }
+  return REG_TOK[reg];
+}
+
 #undef REG_LIST
 
 // ============================================================================
@@ -225,6 +267,33 @@ const uint8_t PAIR_TOK[] = {
 PAIR_LIST
 #undef ITEM
 };
+
+// Convert token to register pair
+uint8_t token_to_pair(uint8_t token, uint8_t prefix = 0, bool use_af = false) {
+  if (prefix == PREFIX_IX) {
+    if (token == TOK_IX) return PAIR_HL;
+    if (token == TOK_HL) return PAIR_INVALID;
+  } else if (prefix == PREFIX_IY) {
+    if (token == TOK_IY) return PAIR_HL;
+    if (token == TOK_HL) return PAIR_INVALID;
+  }
+  if (use_af) {
+    if (token == TOK_AF) return PAIR_SP;
+    if (token == TOK_SP) return PAIR_INVALID;
+  }
+  return index_of(PAIR_TOK, token);
+}
+
+// Translate pair to token, replacing HL with IX/IY if prefixed, and SP with AF if flagged
+uint8_t pair_to_token(uint8_t pair, uint8_t prefix, bool use_af = false) {
+  const bool has_prefix = prefix != 0;
+  if (has_prefix && pair == PAIR_HL) {
+    return prefix == PREFIX_IX ? TOK_IX : TOK_IY;
+  } else if (use_af && pair == PAIR_SP) {
+    return TOK_AF;
+  }
+  return PAIR_TOK[pair];
+}
 
 #undef PAIR_LIST
 
@@ -248,6 +317,11 @@ const uint8_t COND_TOK[] = {
 COND_LIST
 #undef ITEM
 };
+
+// Convert token to branch condition
+uint8_t token_to_cond(uint8_t token) {
+  return index_of(COND_TOK, token);
+}
 
 #undef COND_LIST
 

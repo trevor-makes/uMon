@@ -18,58 +18,6 @@ void print_operand_error(Operand& op) {
   API::print_string("?\n");
 }
 
-template <typename T, uint8_t N>
-uint8_t index_of(const T (&table)[N], T value) {
-  for (uint8_t i = 0; i < N; ++i) {
-    if (table[i] == value) {
-      return i;
-    }
-  }
-  return N;
-}
-
-// Convert token to primary register
-uint8_t token_to_reg(uint8_t token, uint8_t prefix = 0) {
-  switch (prefix) {
-  case PREFIX_IX: return index_of(REG_TOK_IX, token);
-  case PREFIX_IY: return index_of(REG_TOK_IY, token);
-  default: return index_of(REG_TOK, token);
-  }
-}
-
-// Convert token to register pair
-uint8_t token_to_pair(uint8_t token, uint8_t prefix = 0, bool use_af = false) {
-  if (prefix == PREFIX_IX) {
-    if (token == TOK_IX) return PAIR_HL;
-    if (token == TOK_HL) return PAIR_INVALID;
-  } else if (prefix == PREFIX_IY) {
-    if (token == TOK_IY) return PAIR_HL;
-    if (token == TOK_HL) return PAIR_INVALID;
-  }
-  if (use_af) {
-    if (token == TOK_AF) return PAIR_SP;
-    if (token == TOK_SP) return PAIR_INVALID;
-  }
-  return index_of(PAIR_TOK, token);
-}
-
-// Convert token to branch condition
-uint8_t token_to_cond(uint8_t token) {
-  return index_of(COND_TOK, token);
-}
-
-// Convert token to IX/IY prefix
-uint8_t token_to_prefix(uint8_t token) {
-  switch (token & TOK_MASK) {
-  case TOK_IX: case TOK_IXH: case TOK_IXL:
-    return PREFIX_IX;
-  case TOK_IY: case TOK_IYH: case TOK_IYL:
-    return PREFIX_IY;
-  default:
-    return 0;
-  }
-}
-
 // Write [code] at address and return bytes written
 template <typename API>
 uint8_t write_code(uint16_t addr, uint8_t code) {

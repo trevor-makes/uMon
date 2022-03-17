@@ -23,28 +23,6 @@ void print_prefix_error(uint8_t prefix, uint8_t code) {
   API::print_char('?');
 }
 
-// Translate reg to token, optionally with IX/IY prefix, or (HL)
-// (IX/IY+disp) should be handled with read_index_ind instead
-uint8_t reg_to_token(uint8_t reg, uint8_t prefix) {
-  if (prefix != 0 && reg == REG_H) {
-    return prefix == PREFIX_IX ? TOK_IXH : TOK_IYH;
-  } else if (prefix != 0 && reg == REG_L) {
-    return prefix == PREFIX_IX ? TOK_IXL : TOK_IYL;
-  }
-  return REG_TOK[reg];
-}
-
-// Translate pair to token, replacing HL with IX/IY if prefixed, and SP with AF if flagged
-uint8_t pair_to_token(uint8_t pair, uint8_t prefix, bool use_af = false) {
-  const bool has_prefix = prefix != 0;
-  if (has_prefix && pair == PAIR_HL) {
-    return prefix == PREFIX_IX ? TOK_IX : TOK_IY;
-  } else if (use_af && pair == PAIR_SP) {
-    return TOK_AF;
-  }
-  return PAIR_TOK[pair];
-}
-
 // Convert 1-byte immediate at addr to Operand
 template <typename API>
 Operand read_imm_byte(uint16_t addr, bool is_indirect = false) {
