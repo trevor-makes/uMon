@@ -23,6 +23,28 @@ void print_prefix_error(uint8_t prefix, uint8_t code) {
   API::print_char('?');
 }
 
+// Translate reg to token, optionally with IX/IY prefix, or (HL)
+// (IX/IY+disp) should be handled with read_index_ind instead
+uint8_t reg_to_token(uint8_t reg, uint8_t prefix) {
+  if (prefix != 0 && reg == REG_H) {
+    return prefix == PREFIX_IX ? TOK_IXH : TOK_IYH;
+  } else if (prefix != 0 && reg == REG_L) {
+    return prefix == PREFIX_IX ? TOK_IXL : TOK_IYL;
+  }
+  return REG_TOK[reg];
+}
+
+// Translate pair to token, replacing HL with IX/IY if prefixed, and SP with AF if flagged
+uint8_t pair_to_token(uint8_t pair, uint8_t prefix, bool use_af = false) {
+  const bool has_prefix = prefix != 0;
+  if (has_prefix && pair == PAIR_HL) {
+    return prefix == PREFIX_IX ? TOK_IX : TOK_IY;
+  } else if (use_af && pair == PAIR_SP) {
+    return TOK_AF;
+  }
+  return PAIR_TOK[pair];
+}
+
 // Convert 1-byte immediate at addr to Operand
 template <typename API>
 Operand read_imm_byte(uint16_t addr, bool is_indirect = false) {
@@ -60,30 +82,7 @@ Operand read_index_ind(uint16_t addr, uint8_t prefix) {
   return { token, value };
 }
 
-// Translate reg to token, optionally with IX/IY prefix, or (HL)
-// (IX/IY+disp) should be handled with read_index_ind instead
-uint8_t decode_reg(uint8_t reg, uint8_t prefix) {
-  if (prefix != 0 && reg == REG_H) {
-    return prefix == PREFIX_IX ? TOK_IXH : TOK_IYH;
-  } else if (prefix != 0 && reg == REG_L) {
-    return prefix == PREFIX_IX ? TOK_IXL : TOK_IYL;
-  }
-  return REG_TOK[reg];
-}
-
-// Translate pair to token, replacing HL with IX/IY if prefixed, and SP with AF if flagged
-uint8_t decode_pair(uint8_t pair, uint8_t prefix, bool use_af = false) {
-  const bool has_prefix = prefix != 0;
-  if (has_prefix && pair == PAIR_HL) {
-    return prefix == PREFIX_IX ? TOK_IX : TOK_IY;
-  } else if (use_af && pair == PAIR_SP) {
-    return TOK_AF;
-  }
-  return PAIR_TOK[pair];
-}
-
 // Decode IN/OUT (c): ED [01 --- 00-]
-template <typename API>
 uint8_t decode_in_out_c(Instruction& inst, uint8_t code) {
   const bool is_out = (code & 01) == 01;
   const uint8_t reg = (code & 070) >> 3;
@@ -96,7 +95,6 @@ uint8_t decode_in_out_c(Instruction& inst, uint8_t code) {
 }
 
 // Decode 16-bit ADC/SBC: ED [01 --- 010]
-template <typename API>
 uint8_t decode_hl_adc(Instruction& inst, uint8_t code) {
   const bool is_adc = (code & 010) == 010;
   const uint8_t pair = (code & 060) >> 4;
@@ -118,7 +116,6 @@ uint8_t decode_ld_pair_ind(Instruction& inst, uint16_t addr, uint8_t code) {
 }
 
 // Decode IM 0/1/2: ED [01 --- 110]
-template <typename API>
 uint8_t decode_im(Instruction& inst, uint8_t code) {
   inst.mnemonic = MNE_IM;
   // NOTE only 0x46, 0x56, 0x5E are documented; '?' sets an undefined mode
@@ -153,7 +150,6 @@ uint8_t decode_ld_ir(Instruction& inst, uint8_t code) {
 }
 
 // Decode block transfer ops: ED [10 1-- 0--]
-template <typename API>
 uint8_t decode_block_ops(Instruction& inst, uint8_t code) {
   static constexpr const uint8_t OPS[4][4] = {
     { MNE_LDI, MNE_LDD, MNE_LDIR, MNE_LDDR },
@@ -174,9 +170,9 @@ uint8_t decode_ed(Instruction& inst, uint16_t addr) {
   if ((code & 0300) == 0100) {
     switch (code & 07) {
     case 0: case 1:
-      return decode_in_out_c<API>(inst, code);
+      return decode_in_out_c(inst, code);
     case 2:
-      return decode_hl_adc<API>(inst, code);
+      return decode_hl_adc(inst, code);
     case 3:
       return decode_ld_pair_ind<API>(inst, addr, code);
     case 4:
@@ -188,12 +184,12 @@ uint8_t decode_ed(Instruction& inst, uint16_t addr) {
       inst.mnemonic = code == 0115 ? MNE_RETI : MNE_RETN;
       return 1;
     case 6:
-      return decode_im<API>(inst, code);
+      return decode_im(inst, code);
     case 7:
       return decode_ld_ir<API>(inst, code);
     }
   } else if ((code & 0344) == 0240) {
-    return decode_block_ops<API>(inst, code);
+    return decode_block_ops(inst, code);
   }
   print_prefix_error<API>(PREFIX_ED, code);
   return 1;
@@ -270,13 +266,13 @@ uint8_t decode_ld_add_pair(Instruction& inst, uint16_t addr, uint8_t code, uint8
   const uint16_t pair = (code & 060) >> 4;
   if (is_load) {
     inst.mnemonic = MNE_LD;
-    inst.operands[0].token = decode_pair(pair, prefix);
+    inst.operands[0].token = pair_to_token(pair, prefix);
     inst.operands[1] = read_imm_word<API>(addr + 1);
     return 3;
   } else {
     inst.mnemonic = MNE_ADD;
-    inst.operands[0].token = decode_pair(PAIR_HL, prefix);
-    inst.operands[1].token = decode_pair(pair, prefix);
+    inst.operands[0].token = pair_to_token(PAIR_HL, prefix);
+    inst.operands[1].token = pair_to_token(pair, prefix);
     return 1;
   }
 }
@@ -292,7 +288,7 @@ uint8_t decode_ld_ind(Instruction& inst, uint16_t addr, uint8_t code, uint8_t pr
   Operand& op_addr = inst.operands[is_store ? 0 : 1];
   // Convert instruction to tokens
   inst.mnemonic = MNE_LD;
-  op_reg.token = use_hl ? decode_pair(PAIR_HL, prefix) : TOK_A;
+  op_reg.token = use_hl ? pair_to_token(PAIR_HL, prefix) : TOK_A;
   if (use_pair) {
     op_addr.token = PAIR_TOK[(code & 020) >> 4] | TOK_INDIRECT;
   } else {
@@ -313,7 +309,7 @@ uint8_t decode_ld_reg_imm(Instruction& inst, uint16_t addr, uint8_t code, uint8_
     inst.operands[1] = read_imm_byte<API>(addr + 2);
     return 3;
   } else {
-    inst.operands[0].token = decode_reg(reg, prefix);
+    inst.operands[0].token = reg_to_token(reg, prefix);
     inst.operands[1] = read_imm_byte<API>(addr + 1);
     return 2;
   }
@@ -327,7 +323,7 @@ uint8_t decode_inc_dec(Instruction& inst, uint16_t addr, uint8_t code, uint8_t p
   inst.mnemonic = is_inc ? MNE_INC : MNE_DEC;
   if (is_pair) {
     const uint8_t pair = (code & 060) >> 4;
-    inst.operands[0].token = decode_pair(pair, prefix);
+    inst.operands[0].token = pair_to_token(pair, prefix);
     return 1;
   } else {
     const bool has_prefix = prefix != 0;
@@ -337,7 +333,7 @@ uint8_t decode_inc_dec(Instruction& inst, uint16_t addr, uint8_t code, uint8_t p
       inst.operands[0] = read_index_ind<API>(addr + 1, prefix);
       return 2;
     } else {
-      inst.operands[0].token = decode_reg(reg, prefix);
+      inst.operands[0].token = reg_to_token(reg, prefix);
       return 1;
     }
   }
@@ -365,13 +361,13 @@ uint8_t decode_ld_reg_reg(Instruction& inst, uint16_t addr, uint8_t code, uint8_
   if (has_dest_index) {
     inst.operands[0] = read_index_ind<API>(addr + 1, prefix);
   } else {
-    inst.operands[0].token = decode_reg(dest, has_index ? 0 : prefix);
+    inst.operands[0].token = reg_to_token(dest, has_index ? 0 : prefix);
   }
   // Print source register
   if (has_src_index) {
     inst.operands[1] = read_index_ind<API>(addr + 1, prefix);
   } else {
-    inst.operands[1].token = decode_reg(src, has_index ? 0 : prefix);
+    inst.operands[1].token = reg_to_token(src, has_index ? 0 : prefix);
   }
   // Skip displacement byte if (IX/IY+disp) is used
   return has_index ? 2 : 1;
@@ -390,7 +386,7 @@ uint8_t decode_alu_a_reg(Instruction& inst, uint16_t addr, uint8_t code, uint8_t
     inst.operands[1] = read_index_ind<API>(addr + 1, prefix);
     return 2;
   } else {
-    inst.operands[1].token = decode_reg(reg, prefix);
+    inst.operands[1].token = reg_to_token(reg, prefix);
     return 1;
   }
 }
@@ -430,16 +426,16 @@ uint8_t decode_push_pop(Instruction& inst, uint16_t addr, uint8_t code, uint8_t 
     return 1;
   case 050:
     inst.mnemonic = MNE_JP;
-    inst.operands[0].token = decode_pair(PAIR_HL, prefix) | TOK_INDIRECT;
+    inst.operands[0].token = pair_to_token(PAIR_HL, prefix) | TOK_INDIRECT;
     return 1;
   case 070:
     inst.mnemonic = MNE_LD;
     inst.operands[0].token = TOK_SP;
-    inst.operands[1].token = decode_pair(PAIR_HL, prefix);
+    inst.operands[1].token = pair_to_token(PAIR_HL, prefix);
     return 1;
   default: // 000, 020, 040, 060
     inst.mnemonic = is_push ? MNE_PUSH : MNE_POP;
-    inst.operands[0].token = decode_pair((code & 060) >> 4, prefix, true);
+    inst.operands[0].token = pair_to_token((code & 060) >> 4, prefix, true);
     return 1;
   }
 }
@@ -468,7 +464,7 @@ uint8_t decode_misc_hi(Instruction& inst, uint16_t addr, uint8_t code, uint8_t p
   case 040:
     inst.mnemonic = MNE_EX;
     inst.operands[0].token = TOK_SP + TOK_INDIRECT;
-    inst.operands[1].token = decode_pair(PAIR_HL, prefix);
+    inst.operands[1].token = pair_to_token(PAIR_HL, prefix);
     return 1;
   case 050:
     // NOTE EX DE,HL unaffected by prefix
@@ -556,10 +552,11 @@ uint8_t decode_base(Instruction& inst, uint16_t addr, uint8_t prefix = 0) {
 template <typename API>
 uint16_t impl_dasm(uint16_t addr, uint16_t end) {
   for (;;) {
-    // Print "addr:  opcode"
+    // Print instruction address
     fmt_hex16(API::print_char, addr);
     API::print_string(":  ");
 
+    // Translate machine code to mnemonic and operands for printing
     Instruction inst;
     uint8_t size = decode_base<API>(inst, addr);
     if (inst.mnemonic != MNE_INVALID) {
