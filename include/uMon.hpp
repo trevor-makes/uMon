@@ -71,6 +71,7 @@ void impl_memmove(uint16_t start, uint16_t end, uint16_t dest) {
   // Buses narrower than 16-bits introduce cases with ghosting (wrap-around).
   // This logic should work as long as start and dest are both within [0, 2^N),
   // where N is the actual bus width.
+  // See [notes/memmove.png]
   bool a = dest <= end;
   bool b = dest_end < start;
   bool c = dest > start;
