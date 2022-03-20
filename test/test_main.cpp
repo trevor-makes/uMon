@@ -5,7 +5,7 @@
 
 using namespace uMon::z80;
 
-constexpr const uint16_t DATA_SIZE = 64;
+constexpr const uint16_t DATA_SIZE = 8;
 uint8_t test_data[DATA_SIZE];
 uCLI::CursorOwner<16> test_io;
 
@@ -32,7 +32,7 @@ struct AsmTest {
 };
 
 // Transform from text->tokens->code->tokens->text
-void test_asm(AsmTest& test) {
+void test_asm(const AsmTest& test) {
   const uint16_t addr = 0;
 
   // Prepare CLI tokens for assembler
@@ -45,8 +45,8 @@ void test_asm(AsmTest& test) {
   TEST_ASSERT_TRUE_MESSAGE(parse_instruction<TestAPI>(inst_in, args), test.str);
   TEST_ASSERT_EQUAL_MESSAGE(test.inst.mnemonic, inst_in.mnemonic, test.str);
   for (uint8_t i = 0; i < MAX_OPERANDS; ++i) {
-    Operand& ref_op = test.inst.operands[i];
-    Operand& dasm_op = inst_in.operands[i];
+    const Operand& ref_op = test.inst.operands[i];
+    const Operand& dasm_op = inst_in.operands[i];
     TEST_ASSERT_EQUAL_MESSAGE(ref_op.token, dasm_op.token, test.str);
     TEST_ASSERT_EQUAL_MESSAGE(ref_op.value, dasm_op.value, test.str);
   }
@@ -67,8 +67,8 @@ void test_asm(AsmTest& test) {
   TEST_ASSERT_EQUAL_MESSAGE(test.n_bytes, size, test.str);
   TEST_ASSERT_EQUAL_MESSAGE(test.inst.mnemonic, inst_out.mnemonic, test.str);
   for (uint8_t i = 0; i < MAX_OPERANDS; ++i) {
-    Operand& ref_op = test.inst.operands[i];
-    Operand& dasm_op = inst_out.operands[i];
+    const Operand& ref_op = test.inst.operands[i];
+    const Operand& dasm_op = inst_out.operands[i];
     // Ignore print formatting flags
     const uint8_t mask = ~(TOK_BYTE | TOK_DIGIT);
     TEST_ASSERT_EQUAL_MESSAGE(ref_op.token, dasm_op.token & mask, test.str);
@@ -81,10 +81,15 @@ void test_asm(AsmTest& test) {
   TEST_ASSERT_EQUAL_STRING_MESSAGE(test.str, test_io.contents(), test.str);
 }
 
-AsmTest test_cases[] = {
+AsmTest misc_cases[] = {
   {"NOP",           1, "\x00",              {MNE_NOP}},
   {"EX AF,AF",      1, "\x08",              {MNE_EX, {TOK_AF}, {TOK_AF}}},
   {"DJNZ $0000",    2, "\x10\xFE",          {MNE_DJNZ, {TOK_IMMEDIATE, 0}}},
+  {"JR $0002",      2, "\x18\x00",          {MNE_JR, {TOK_IMMEDIATE, 2}}},
+  {"JR NZ,$0004",   2, "\x20\x02",          {MNE_JR, {TOK_NZ}, {TOK_IMMEDIATE, 4}}},
+  {"JR Z,$0081",    2, "\x28\x7F",          {MNE_JR, {TOK_Z}, {TOK_IMMEDIATE, 0x81}}},
+  {"JR NC,$FF82",   2, "\x30\x80",          {MNE_JR, {TOK_NC}, {TOK_IMMEDIATE, 0xFF82}}},
+  {"JR C,$FFD2",    2, "\x38\xD0",          {MNE_JR, {TOK_C}, {TOK_IMMEDIATE, 0xFFD2}}},
 
   {"LD (BC),A",     1, "\x02",              {MNE_LD, {TOK_BC_IND}, {TOK_A}}},
   {"LD A,(BC)",     1, "\x0A",              {MNE_LD, {TOK_A}, {TOK_BC_IND}}},
@@ -110,6 +115,8 @@ AsmTest test_cases[] = {
 
   {"HALT",          1, "\x76",              {MNE_HALT}},
 
+  {"RET",           1, "\xC9",              {MNE_RET}},
+  {"CALL $FFD2",    3, "\xCD\xD2\xFF",      {MNE_CALL, {TOK_IMMEDIATE, 0xFFD2}}},
   {"EXX",           1, "\xD9",              {MNE_EXX}},
   {"JP (HL)",       1, "\xE9",              {MNE_JP, {TOK_HL_IND}}},
   {"JP (IX)",       2, "\xDD\xE9",          {MNE_JP, {TOK_IX_IND}}},
@@ -131,19 +138,96 @@ AsmTest test_cases[] = {
   {"IM 0",          2, "\xED\x46",          {MNE_IM, {TOK_IMMEDIATE, 0}}},
   {"IM 1",          2, "\xED\x56",          {MNE_IM, {TOK_IMMEDIATE, 1}}},
   {"IM 2",          2, "\xED\x5E",          {MNE_IM, {TOK_IMMEDIATE, 2}}},
+  {"LD I,A",        2, "\xED\x47",          {MNE_LD, {TOK_I}, {TOK_A}}},
+  {"LD R,A",        2, "\xED\x4F",          {MNE_LD, {TOK_R}, {TOK_A}}},
+  {"LD A,I",        2, "\xED\x57",          {MNE_LD, {TOK_A}, {TOK_I}}},
+  {"LD A,R",        2, "\xED\x5F",          {MNE_LD, {TOK_A}, {TOK_R}}},
   {"RRD",           2, "\xED\x67",          {MNE_RRD}},
   {"RLD",           2, "\xED\x6F",          {MNE_RLD}},
 };
 
-void test_asm_cases(void) {
-  for (AsmTest& test : test_cases) {
+void test_asm_misc(void) {
+  for (AsmTest& test : misc_cases) {
     test_asm(test);
+  }
+}
+
+uCLI::CursorOwner<16> asm_buf;
+
+void test_asm_ld_r(void) {
+  static const uint8_t toks[] = { TOK_B, TOK_C, TOK_D, TOK_E, TOK_H, TOK_L, TOK_HL_IND, TOK_A };
+  static const char* regs[] = { "B", "C", "D", "E", "H", "L", "(HL)", "A" };
+  // Test LD r,r
+  for (uint8_t dst = 0; dst < 8; ++dst) {
+    for (uint8_t src = 0; src < 8; ++src) {
+      if (dst == 6 && src == 6) continue; // skip HALT
+      asm_buf.clear();
+      asm_buf.try_insert("LD ");
+      asm_buf.try_insert(regs[dst]);
+      asm_buf.try_insert(',');
+      asm_buf.try_insert(regs[src]);
+      uint8_t code = 0100 | dst << 3 | src;
+      AsmTest test = {asm_buf.contents(), 1, (char*)&code, {MNE_LD, {toks[dst]}, {toks[src]}}};
+      test_asm(test);
+    }
+    { // Test LD r,n
+      asm_buf.clear();
+      asm_buf.try_insert("LD ");
+      asm_buf.try_insert(regs[dst]);
+      asm_buf.try_insert(",$");
+      uMon::fmt_hex8([&](char c){asm_buf.try_insert(c);}, dst);
+      uint8_t code[2] = { uint8_t(0006 | dst << 3), dst };
+      AsmTest test = {asm_buf.contents(), 2, (char*)code, {MNE_LD, {toks[dst]}, {TOK_IMMEDIATE, dst}}};
+      test_asm(test);
+    }
+    if (dst == 6) continue; // skip HALT
+    { // Test LD r,(IX)
+      asm_buf.clear();
+      asm_buf.try_insert("LD ");
+      asm_buf.try_insert(regs[dst]);
+      asm_buf.try_insert(',');
+      asm_buf.try_insert("(IX)");
+      uint8_t code[3] = { 0xDD, uint8_t(0106 | dst << 3), 0x00 };
+      AsmTest test = {asm_buf.contents(), 3, (char*)code, {MNE_LD, {toks[dst]}, {TOK_IX_IND}}};
+      test_asm(test);
+    }
+    { // Test LD (IX),r
+      asm_buf.clear();
+      asm_buf.try_insert("LD ");
+      asm_buf.try_insert("(IX+$01)");
+      asm_buf.try_insert(',');
+      asm_buf.try_insert(regs[dst]); // NOTE using dst as src
+      uint8_t code[3] = { 0xDD, uint8_t(0160 | dst), 0x01 };
+      AsmTest test = {asm_buf.contents(), 3, (char*)code, {MNE_LD, {TOK_IX_IND, 1}, {toks[dst]}}};
+      test_asm(test);
+    }
+    { // Test LD r,(IY)
+      asm_buf.clear();
+      asm_buf.try_insert("LD ");
+      asm_buf.try_insert(regs[dst]);
+      asm_buf.try_insert(',');
+      asm_buf.try_insert("(IY-$01)");
+      uint8_t code[3] = { 0xFD, uint8_t(0106 | dst << 3), 0xFF };
+      AsmTest test = {asm_buf.contents(), 3, (char*)code, {MNE_LD, {toks[dst]}, {TOK_IY_IND, uint16_t(-1)}}};
+      test_asm(test);
+    }
+    { // Test LD (IY),r
+      asm_buf.clear();
+      asm_buf.try_insert("LD ");
+      asm_buf.try_insert("(IY+$7F)");
+      asm_buf.try_insert(',');
+      asm_buf.try_insert(regs[dst]); // NOTE using dst as src
+      uint8_t code[3] = { 0xFD, uint8_t(0160 | dst), 0x7F };
+      AsmTest test = {asm_buf.contents(), 3, (char*)code, {MNE_LD, {TOK_IY_IND, 0x7F}, {toks[dst]}}};
+      test_asm(test);
+    }
   }
 }
 
 void setup() {
   UNITY_BEGIN();
-  RUN_TEST(test_asm_cases);
+  RUN_TEST(test_asm_misc);
+  RUN_TEST(test_asm_ld_r);
   UNITY_END();
 }
 
