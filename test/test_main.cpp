@@ -31,19 +31,27 @@ struct AsmTest {
   uint8_t n_bytes;
 };
 
+// Transform from text->tokens->code->tokens->text
 void test_asm(AsmTest& test) {
   const uint16_t addr = 0;
 
+  // Prepare CLI tokens for assembler
   test_io.clear();
   test_io.try_insert(test.str);
   uCLI::Tokens args(test_io.contents());
 
+  // Parse instruction from CLI tokens and validate
   Instruction inst_in;
   TEST_ASSERT_TRUE_MESSAGE(parse_instruction<TestAPI>(inst_in, args), test.str);
   TEST_ASSERT_EQUAL_MESSAGE(test.inst.mnemonic, inst_in.mnemonic, test.str);
-  TEST_ASSERT_EQUAL_MESSAGE(test.inst.operands[0].token, inst_in.operands[0].token, test.str);
-  TEST_ASSERT_EQUAL_MESSAGE(test.inst.operands[1].token, inst_in.operands[1].token, test.str);
+  for (uint8_t i = 0; i < MAX_OPERANDS; ++i) {
+    Operand& ref_op = test.inst.operands[i];
+    Operand& dasm_op = inst_in.operands[i];
+    TEST_ASSERT_EQUAL_MESSAGE(ref_op.token, dasm_op.token, test.str);
+    TEST_ASSERT_EQUAL_MESSAGE(ref_op.value, dasm_op.value, test.str);
+  }
 
+  // Assemble instruction and validate machine code bytes
   uint8_t size;
   size = asm_instruction<TestAPI>(inst_in, addr);
   TEST_ASSERT_EQUAL_MESSAGE(test.n_bytes, size, test.str);
@@ -53,13 +61,21 @@ void test_asm(AsmTest& test) {
     TEST_ASSERT_EQUAL_MESSAGE(expected, assembled, test.str);
   }
 
+  // Disassemble instruction and validate tokens
   Instruction inst_out;
   size = dasm_instruction<TestAPI>(inst_out, addr);
   TEST_ASSERT_EQUAL_MESSAGE(test.n_bytes, size, test.str);
   TEST_ASSERT_EQUAL_MESSAGE(test.inst.mnemonic, inst_out.mnemonic, test.str);
-  TEST_ASSERT_EQUAL_MESSAGE(test.inst.operands[0].token, inst_out.operands[0].token, test.str);
-  TEST_ASSERT_EQUAL_MESSAGE(test.inst.operands[1].token, inst_out.operands[1].token, test.str);
+  for (uint8_t i = 0; i < MAX_OPERANDS; ++i) {
+    Operand& ref_op = test.inst.operands[i];
+    Operand& dasm_op = inst_out.operands[i];
+    // Ignore print formatting flags
+    const uint8_t mask = ~(TOK_BYTE | TOK_DIGIT);
+    TEST_ASSERT_EQUAL_MESSAGE(ref_op.token, dasm_op.token & mask, test.str);
+    TEST_ASSERT_EQUAL_MESSAGE(ref_op.value, dasm_op.value, test.str);
+  }
 
+  // Print instruction from tokens and validate with input
   test_io.clear();
   print_instruction<TestAPI>(inst_out);
   TEST_ASSERT_EQUAL_STRING_MESSAGE(test.str, test_io.contents(), test.str);
@@ -70,6 +86,7 @@ AsmTest test_cases[] = {
   {"HALT", {MNE_HALT}, "\x76", 1},
   {"INC C", {MNE_INC, {TOK_C}}, "\014", 1},
   {"LD A,R", {MNE_LD, {TOK_A}, {TOK_R}}, "\xED\137", 2},
+  {"LD (HL),$05", {MNE_LD, {TOK_HL_IND}, {TOK_IMMEDIATE, 5}}, "\066\x05", 2},
 };
 
 void test_asm_cases(void) {
