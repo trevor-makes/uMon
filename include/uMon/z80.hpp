@@ -57,7 +57,7 @@ bool parse_operand(Operand& op, uCLI::Tokens tokens) {
 }
 
 template <typename API>
-bool parse_instruction(Instruction& inst, uCLI::Args args) {
+bool parse_instruction(Instruction& inst, uCLI::Tokens args) {
   const char* mnemonic = args.next();
   inst.mnemonic = index_of_pgm_string(MNE_STR, mnemonic);
   uMON_FMT_ERROR(inst.mnemonic == MNE_INVALID, "op", mnemonic, return false);

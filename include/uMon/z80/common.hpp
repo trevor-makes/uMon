@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <uMon/format.hpp>
+
 namespace uMon {
 namespace z80 {
 
@@ -335,6 +337,7 @@ struct Operand {
   uint16_t value;
 
   Operand(): token(TOK_INVALID), value(0) {}
+  Operand(uint8_t token): token(token), value(0) {}
   Operand(uint8_t token, uint16_t value): token(token), value(value) {}
 };
 
@@ -347,6 +350,9 @@ struct Instruction {
   Operand operands[MAX_OPERANDS];
 
   Instruction(): mnemonic(MNE_INVALID) {}
+  Instruction(uint8_t mnemonic): mnemonic(mnemonic) {}
+  Instruction(uint8_t mnemonic, Operand op1): mnemonic(mnemonic), operands({op1, {}}) {}
+  Instruction(uint8_t mnemonic, Operand op1, Operand op2): mnemonic(mnemonic), operands({op1, op2}) {}
 };
 
 // Nicely format an instruction operand
