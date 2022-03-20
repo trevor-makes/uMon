@@ -98,31 +98,32 @@ uint8_t index_of_pgm_string(const char* const (&table)[N], const char* str) {
   return N;
 }
 
-#define uMON_FMT_ERROR(IS_ERR, NAME, INPUT) \
+#define uMON_FMT_ERROR(IS_ERR, LABEL, STRING, RET) \
   if (IS_ERR) { \
-    API::print_string(NAME); \
-    if (*INPUT != '\0') { \
+    const char* str = STRING; \
+    API::print_string(LABEL); \
+    if (*str != '\0') { \
       API::print_string(": "); \
-      API::print_string(INPUT); \
+      API::print_string(str); \
     } \
     API::print_string("?\n"); \
-    return; \
+    RET; \
   }
 
-#define uMON_EXPECT_UINT(TYPE, NAME, ARGS) \
+#define uMON_EXPECT_UINT(TYPE, NAME, ARGS, RET) \
   TYPE NAME; \
   { \
     const char* str = ARGS.next(); \
     const bool is_err = !parse_unsigned(str, NAME); \
-    uMON_FMT_ERROR(is_err, #NAME, str) \
+    uMON_FMT_ERROR(is_err, #NAME, str, RET) \
   }
 
-#define uMON_OPTION_UINT(TYPE, NAME, ARGS, DEFAULT) \
+#define uMON_OPTION_UINT(TYPE, NAME, DEFAULT, ARGS, RET) \
   TYPE NAME = DEFAULT; \
   if (ARGS.has_next()) { \
     const char* str = ARGS.next(); \
     const bool is_err = !parse_unsigned(str, NAME); \
-    uMON_FMT_ERROR(is_err, #NAME, str); \
+    uMON_FMT_ERROR(is_err, #NAME, str, RET); \
   }
 
 } // namespace uMon

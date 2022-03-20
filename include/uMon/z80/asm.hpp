@@ -528,7 +528,7 @@ uint8_t write_rst(uint16_t addr, Operand& op) {
 }
 
 template <typename API>
-uint8_t impl_asm(uint16_t addr, Instruction inst) {
+uint8_t asm_instruction(Instruction& inst, uint16_t addr) {
   Operand& op1 = inst.operands[0];
   Operand& op2 = inst.operands[1];
   switch (inst.mnemonic) {

@@ -461,7 +461,7 @@ uint8_t decode_misc_hi(Instruction& inst, uint16_t addr, uint8_t code, uint8_t p
 
 // Decode instruction at address, returning bytes read
 template <typename API>
-uint8_t decode_base(Instruction& inst, uint16_t addr, uint8_t prefix = 0) {
+uint8_t dasm_instruction(Instruction& inst, uint16_t addr, uint8_t prefix = 0) {
   uint8_t code = API::read_byte(addr);
   // Handle prefix codes
   if (code == PREFIX_IX || code == PREFIX_ED || code == PREFIX_IY) {
@@ -474,7 +474,7 @@ uint8_t decode_base(Instruction& inst, uint16_t addr, uint8_t prefix = 0) {
       if (code == PREFIX_ED) {
         return 1 + decode_ed<API>(inst, addr + 1);
       } else {
-        return 1 + decode_base<API>(inst, addr + 1, code);
+        return 1 + dasm_instruction<API>(inst, addr + 1, code);
       }
     }
   }
@@ -528,7 +528,7 @@ uint8_t decode_base(Instruction& inst, uint16_t addr, uint8_t prefix = 0) {
 }
 
 template <typename API>
-uint16_t impl_dasm(uint16_t addr, uint16_t end) {
+uint16_t dasm_range(uint16_t addr, uint16_t end) {
   for (;;) {
     // Print instruction address
     fmt_hex16(API::print_char, addr);
@@ -536,7 +536,7 @@ uint16_t impl_dasm(uint16_t addr, uint16_t end) {
 
     // Translate machine code to mnemonic and operands for printing
     Instruction inst;
-    uint8_t size = decode_base<API>(inst, addr);
+    uint8_t size = dasm_instruction<API>(inst, addr);
     if (inst.mnemonic != MNE_INVALID) {
       print_instruction<API>(inst);
     }

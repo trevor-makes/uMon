@@ -91,19 +91,19 @@ void impl_memmove(uint16_t start, uint16_t end, uint16_t dest) {
 template <typename API, uint8_t COL_SIZE = 16>
 void cmd_hex(uCLI::Args args) {
   // Default size to one row if not provided
-  uMON_EXPECT_UINT(uint16_t, start, args);
-  uMON_OPTION_UINT(uint16_t, size, args, COL_SIZE);
+  uMON_EXPECT_UINT(uint16_t, start, args, return);
+  uMON_OPTION_UINT(uint16_t, size, COL_SIZE, args, return);
   impl_hex<API, COL_SIZE>(start, start + size - 1);
 }
 
 template <typename API>
 void cmd_set(uCLI::Args args) {
-  uMON_EXPECT_UINT(uint16_t, start, args);
+  uMON_EXPECT_UINT(uint16_t, start, args, return);
   do {
     if (args.is_string()) {
       start = impl_strcpy<API>(start, args.next());
     } else {
-      uMON_EXPECT_UINT(uint8_t, data, args);
+      uMON_EXPECT_UINT(uint8_t, data, args, return);
       API::write_byte(start++, data);
     }
   } while (args.has_next());
@@ -112,17 +112,17 @@ void cmd_set(uCLI::Args args) {
 
 template <typename API>
 void cmd_fill(uCLI::Args args) {
-  uMON_EXPECT_UINT(uint16_t, start, args);
-  uMON_EXPECT_UINT(uint16_t, size, args);
-  uMON_EXPECT_UINT(uint8_t, pattern, args);
+  uMON_EXPECT_UINT(uint16_t, start, args, return);
+  uMON_EXPECT_UINT(uint16_t, size, args, return);
+  uMON_EXPECT_UINT(uint8_t, pattern, args, return);
   impl_memset<API>(start, start + size - 1, pattern);
 }
 
 template <typename API>
 void cmd_move(uCLI::Args args) {
-  uMON_EXPECT_UINT(uint16_t, start, args);
-  uMON_EXPECT_UINT(uint16_t, size, args);
-  uMON_EXPECT_UINT(uint16_t, dest, args);
+  uMON_EXPECT_UINT(uint16_t, start, args, return);
+  uMON_EXPECT_UINT(uint16_t, size, args, return);
+  uMON_EXPECT_UINT(uint16_t, dest, args, return);
   impl_memmove<API>(start, start + size - 1, dest);
 }
 
