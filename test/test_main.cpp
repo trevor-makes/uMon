@@ -26,9 +26,9 @@ struct TestAPI {
 
 struct AsmTest {
   const char* str;
-  Instruction inst;
-  const char* code;
   uint8_t n_bytes;
+  const char* code;
+  Instruction inst;
 };
 
 // Transform from text->tokens->code->tokens->text
@@ -82,11 +82,57 @@ void test_asm(AsmTest& test) {
 }
 
 AsmTest test_cases[] = {
-  {"NOP", {MNE_NOP}, "\0", 1},
-  {"HALT", {MNE_HALT}, "\x76", 1},
-  {"INC C", {MNE_INC, {TOK_C}}, "\014", 1},
-  {"LD A,R", {MNE_LD, {TOK_A}, {TOK_R}}, "\xED\137", 2},
-  {"LD (HL),$05", {MNE_LD, {TOK_HL_IND}, {TOK_IMMEDIATE, 5}}, "\066\x05", 2},
+  {"NOP",           1, "\x00",              {MNE_NOP}},
+  {"EX AF,AF",      1, "\x08",              {MNE_EX, {TOK_AF}, {TOK_AF}}},
+  {"DJNZ $0000",    2, "\x10\xFE",          {MNE_DJNZ, {TOK_IMMEDIATE, 0}}},
+
+  {"LD (BC),A",     1, "\x02",              {MNE_LD, {TOK_BC_IND}, {TOK_A}}},
+  {"LD A,(BC)",     1, "\x0A",              {MNE_LD, {TOK_A}, {TOK_BC_IND}}},
+  {"LD (DE),A",     1, "\x12",              {MNE_LD, {TOK_DE_IND}, {TOK_A}}},
+  {"LD A,(DE)",     1, "\x1A",              {MNE_LD, {TOK_A}, {TOK_DE_IND}}},
+  {"LD ($CAFE),HL", 3, "\x22\xFE\xCA",      {MNE_LD, {TOK_IMM_IND, 0xCAFE}, {TOK_HL}}},
+  {"LD HL,($BABE)", 3, "\x2A\xBE\xBA",      {MNE_LD, {TOK_HL}, {TOK_IMM_IND, 0xBABE}}},
+  {"LD ($CAFE),IX", 4, "\xDD\x22\xFE\xCA",  {MNE_LD, {TOK_IMM_IND, 0xCAFE}, {TOK_IX}}},
+  {"LD IX,($BABE)", 4, "\xDD\x2A\xBE\xBA",  {MNE_LD, {TOK_IX}, {TOK_IMM_IND, 0xBABE}}},
+  {"LD ($CAFE),IY", 4, "\xFD\x22\xFE\xCA",  {MNE_LD, {TOK_IMM_IND, 0xCAFE}, {TOK_IY}}},
+  {"LD IY,($BABE)", 4, "\xFD\x2A\xBE\xBA",  {MNE_LD, {TOK_IY}, {TOK_IMM_IND, 0xBABE}}},
+  {"LD ($DEAD),A",  3, "\x32\xAD\xDE",      {MNE_LD, {TOK_IMM_IND, 0xDEAD}, {TOK_A}}},
+  {"LD A,($BEEF)",  3, "\x3A\xEF\xBE",      {MNE_LD, {TOK_A}, {TOK_IMM_IND, 0xBEEF}}},
+
+  {"RLCA",          1, "\x07",              {MNE_RLCA}},
+  {"RRCA",          1, "\x0F",              {MNE_RRCA}},
+  {"RLA",           1, "\x17",              {MNE_RLA}},
+  {"RRA",           1, "\x1F",              {MNE_RRA}},
+  {"DAA",           1, "\x27",              {MNE_DAA}},
+  {"CPL",           1, "\x2F",              {MNE_CPL}},
+  {"SCF",           1, "\x37",              {MNE_SCF}},
+  {"CCF",           1, "\x3F",              {MNE_CCF}},
+
+  {"HALT",          1, "\x76",              {MNE_HALT}},
+
+  {"EXX",           1, "\xD9",              {MNE_EXX}},
+  {"JP (HL)",       1, "\xE9",              {MNE_JP, {TOK_HL_IND}}},
+  {"JP (IX)",       2, "\xDD\xE9",          {MNE_JP, {TOK_IX_IND}}},
+  {"JP (IY)",       2, "\xFD\xE9",          {MNE_JP, {TOK_IY_IND}}},
+  {"LD SP,HL",      1, "\xF9",              {MNE_LD, {TOK_SP}, {TOK_HL}}},
+  {"LD SP,IX",      2, "\xDD\xF9",          {MNE_LD, {TOK_SP}, {TOK_IX}}},
+  {"LD SP,IY",      2, "\xFD\xF9",          {MNE_LD, {TOK_SP}, {TOK_IY}}},
+
+  {"EX (SP),HL",    1, "\xE3",              {MNE_EX, {TOK_SP_IND}, {TOK_HL}}},
+  {"EX (SP),IX",    2, "\xDD\xE3",          {MNE_EX, {TOK_SP_IND}, {TOK_IX}}},
+  {"EX (SP),IY",    2, "\xFD\xE3",          {MNE_EX, {TOK_SP_IND}, {TOK_IY}}},
+  {"EX DE,HL",      1, "\xEB",              {MNE_EX, {TOK_DE}, {TOK_HL}}},
+  {"DI",            1, "\xF3",              {MNE_DI}},
+  {"EI",            1, "\xFB",              {MNE_EI}},
+
+  {"NEG",           2, "\xED\x44",          {MNE_NEG}},
+  {"RETN",          2, "\xED\x45",          {MNE_RETN}},
+  {"RETI",          2, "\xED\x4D",          {MNE_RETI}},
+  {"IM 0",          2, "\xED\x46",          {MNE_IM, {TOK_IMMEDIATE, 0}}},
+  {"IM 1",          2, "\xED\x56",          {MNE_IM, {TOK_IMMEDIATE, 1}}},
+  {"IM 2",          2, "\xED\x5E",          {MNE_IM, {TOK_IMMEDIATE, 2}}},
+  {"RRD",           2, "\xED\x67",          {MNE_RRD}},
+  {"RLD",           2, "\xED\x6F",          {MNE_RLD}},
 };
 
 void test_asm_cases(void) {
