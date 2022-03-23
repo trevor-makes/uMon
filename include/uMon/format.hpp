@@ -3,7 +3,19 @@
 
 #pragma once
 
+#ifdef AVR
 #include <avr/pgmspace.h>
+#else
+#include <strings.h>
+char pgm_read_byte(const char* ptr) {
+  return *ptr;
+}
+const char* pgm_read_ptr(const char* const* ptr) {
+  return *ptr;
+}
+#define strcasecmp_P strcasecmp
+#define PROGMEM
+#endif
 
 #include <stdint.h>
 #include <stdlib.h>

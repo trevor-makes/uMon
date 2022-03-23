@@ -352,8 +352,8 @@ struct Instruction {
 
   Instruction(): mnemonic(MNE_INVALID) {}
   Instruction(uint8_t mnemonic): mnemonic(mnemonic) {}
-  Instruction(uint8_t mnemonic, Operand op1): mnemonic(mnemonic), operands({op1, {}}) {}
-  Instruction(uint8_t mnemonic, Operand op1, Operand op2): mnemonic(mnemonic), operands({op1, op2}) {}
+  Instruction(uint8_t mnemonic, Operand op1): mnemonic(mnemonic), operands{op1, {}} {}
+  Instruction(uint8_t mnemonic, Operand op1, Operand op2): mnemonic(mnemonic), operands{op1, op2} {}
 };
 
 // Nicely format an instruction operand
