@@ -246,8 +246,6 @@ void test_asm_ld_r(void) {
   }
 }
 
-#include <stdio.h>
-
 void test_asm_alu_r() {
   // Test [alu] A,r
   for (uint8_t alu = 0; alu < 8; ++alu) {
@@ -293,10 +291,46 @@ void test_asm_alu_r() {
   }
 }
 
+void test_asm_inc_r() {
+  static uint8_t OPS[] = { MNE_INC, MNE_DEC };
+  for (uint8_t mne : OPS) {
+    // inc/dec r
+    for (uint8_t reg = 0; reg < 8; ++reg) {
+      uint8_t reg_tok = REG_TOK[reg];
+      const char* reg_str = REG_STR[reg];
+      asm_buf.clear();
+      asm_buf.try_insert(MNE_STR[mne]);
+      asm_buf.try_insert(' ');
+      asm_buf.try_insert(reg_str);
+      uint8_t code = (mne == MNE_DEC ? 0005 : 0004) | reg << 3;
+      AsmTest test = {asm_buf.contents(), 1, (char*)&code, {mne, {reg_tok}}};
+      test_asm(test);
+    }
+    // inc/dec ixh/ixl/iyh/iyl
+    static uint8_t TOK[] = {TOK_IXL, TOK_IXH, TOK_IYL, TOK_IYH};
+    static const char* STR[] = {"IXL", "IXH", "IYL", "IYH"};
+    static uint8_t REG[] = {REG_L, REG_H, REG_L, REG_H};
+    static uint8_t PFX[] = {0xDD, 0xDD, 0xFD, 0xFD};
+    for (uint8_t i = 0; i < 4; ++i) {
+      uint8_t reg = REG[i];
+      uint8_t reg_tok = TOK[i];
+      const char* reg_str = STR[i];
+      uint8_t prefix = PFX[i];
+      asm_buf.clear();
+      asm_buf.try_insert(MNE_STR[mne]);
+      asm_buf.try_insert(' ');
+      asm_buf.try_insert(reg_str);
+      uint8_t code[] = {prefix, uint8_t((mne == MNE_DEC ? 0005 : 0004) | reg << 3)};
+      AsmTest test = {asm_buf.contents(), sizeof(code), (char*)code, {mne, {reg_tok}}};
+      test_asm(test);}
+  }
+}
+
 int main(int argc, char* argv[]) {
   UNITY_BEGIN();
   RUN_TEST(test_asm_misc);
   RUN_TEST(test_asm_ld_r);
   RUN_TEST(test_asm_alu_r);
+  RUN_TEST(test_asm_inc_r);
   UNITY_END();
 }
