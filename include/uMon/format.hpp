@@ -33,39 +33,39 @@ bool parse_unsigned(const char* str, T& result) {
 
 // Print single hex digit (or garbage if n > 15)
 template <typename F>
-void fmt_hex4(F&& print, uint8_t n) {
+void format_hex4(F&& print, uint8_t n) {
   print(n < 10 ? '0' + n : 'A' - 10 + n);
 }
 
 // Print 2 hex digits with leading zeroes
 template <typename F>
-void fmt_hex(F&& print, uint8_t n) {
-  fmt_hex4(print, n >> 4);
-  fmt_hex4(print, n & 0xF);
+void format_hex(F&& print, uint8_t n) {
+  format_hex4(print, n >> 4);
+  format_hex4(print, n & 0xF);
 }
 
 template <typename F>
-void fmt_hex8(F&& print, uint8_t n) { fmt_hex(print, n); }
+void format_hex8(F&& print, uint8_t n) { format_hex(print, n); }
 
 // Print 4 hex digits with leading zeroes
 template <typename F>
-void fmt_hex(F&& print, uint16_t n) {
-  fmt_hex8(print, n >> 8);
-  fmt_hex8(print, n & 0xFF);
+void format_hex(F&& print, uint16_t n) {
+  format_hex8(print, n >> 8);
+  format_hex8(print, n & 0xFF);
 }
 
 template <typename F>
-void fmt_hex16(F&& print, uint16_t n) { fmt_hex(print, n); }
+void format_hex16(F&& print, uint16_t n) { format_hex(print, n); }
 
 // Print 8 hex digits with leading zeroes
 template <typename F>
-void fmt_hex(F&& print, uint32_t n) {
-  fmt_hex16(print, n >> 16);
-  fmt_hex16(print, n & 0xFFFF);
+void format_hex(F&& print, uint32_t n) {
+  format_hex16(print, n >> 16);
+  format_hex16(print, n & 0xFFFF);
 }
 
 template <typename F>
-void fmt_hex32(F&& print, uint32_t n) { fmt_hex(print, n); }
+void format_hex32(F&& print, uint32_t n) { format_hex(print, n); }
 
 template <typename F>
 void fmt_ascii(F&& print, uint8_t c) {
@@ -91,7 +91,7 @@ void set_prompt(const char* cmd, const T arg, const Var... var)
     set_prompt<API>(cmd);
   }
   API::prompt_char('$');
-  fmt_hex(API::prompt_char, arg);
+  format_hex(API::prompt_char, arg);
   API::prompt_char(' ');
   // Append following args
   if (sizeof...(Var) > 0) {

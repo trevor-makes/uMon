@@ -199,7 +199,7 @@ void test_asm_ld_r(void) {
       asm_buf.try_insert(dst_str);
       asm_buf.try_insert(",$");
       uint8_t imm = dst * 8;
-      uMon::fmt_hex8([&](char c){asm_buf.try_insert(c);}, imm);
+      uMon::format_hex8([&](char c){asm_buf.try_insert(c);}, imm);
       uint8_t code[2] = { uint8_t(0006 | dst << 3), imm };
       AsmTest test = {asm_buf.contents(), sizeof(code), (char*)code, {MNE_LD, {dst_tok}, {TOK_IMMEDIATE, imm}}};
       test_asm(test);
@@ -283,7 +283,7 @@ void test_asm_alu_r() {
       asm_buf.try_insert(alu_str);
       asm_buf.try_insert(" A,$");
       uint8_t imm = alu * 8;
-      uMon::fmt_hex8([&](char c){asm_buf.try_insert(c);}, imm);
+      uMon::format_hex8([&](char c){asm_buf.try_insert(c);}, imm);
       uint8_t code[] = { uint8_t(0306 | alu << 3), imm };
       AsmTest test = {asm_buf.contents(), sizeof(code), (char*)code, {alu_mne, {TOK_A}, {TOK_IMMEDIATE, imm}}};
       test_asm(test);

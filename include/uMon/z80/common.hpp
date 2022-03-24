@@ -370,17 +370,17 @@ void print_operand(Operand& op) {
       int8_t value = op.value;
       API::print_char(value < 0 ? '-' : '+');
       API::print_char('$');
-      fmt_hex8(API::print_char, value < 0 ? -value : value);
+      format_hex8(API::print_char, value < 0 ? -value : value);
     }
   } else if (token == TOK_IMMEDIATE) {
     if (is_digit) {
       API::print_char('0' + op.value);
     } else if (is_byte) {
       API::print_char('$');
-      fmt_hex8(API::print_char, op.value);
+      format_hex8(API::print_char, op.value);
     } else {
       API::print_char('$');
-      fmt_hex16(API::print_char, op.value);
+      format_hex16(API::print_char, op.value);
     }
   } else {
     API::print_char('?');

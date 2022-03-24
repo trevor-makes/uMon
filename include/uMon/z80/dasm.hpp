@@ -18,8 +18,8 @@ namespace z80 {
 template <typename API>
 void print_prefix_error(uint8_t prefix, uint8_t code) {
   API::print_char('$');
-  fmt_hex8(API::print_char, prefix);
-  fmt_hex8(API::print_char, code);
+  format_hex8(API::print_char, prefix);
+  format_hex8(API::print_char, code);
   API::print_char('?');
 }
 
@@ -531,7 +531,7 @@ template <typename API, uint8_t MAX_ROWS = 24>
 uint16_t dasm_range(uint16_t addr, uint16_t end) {
   for (uint8_t i = 0; i < MAX_ROWS; ++i) {
     // Print instruction address
-    fmt_hex16(API::print_char, addr);
+    format_hex16(API::print_char, addr);
     API::print_string(":  ");
 
     // Translate machine code to mnemonic and operands for printing

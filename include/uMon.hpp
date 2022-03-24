@@ -18,7 +18,7 @@ uint16_t impl_hex(uint16_t row, uint16_t end) {
     API::read_bytes(row, row_data);
 
     // Print address
-    fmt_hex16(API::print_char, row);
+    format_hex16(API::print_char, row);
     API::print_char(':');
 
     // Print hex data
@@ -27,7 +27,7 @@ uint16_t impl_hex(uint16_t row, uint16_t end) {
       if (col % 4 == 0) {
         API::print_char(' ');
       }
-      fmt_hex8(API::print_char, row_data[col]);
+      format_hex8(API::print_char, row_data[col]);
     }
 
     // Print string data
