@@ -33,7 +33,7 @@ uint16_t impl_hex(uint16_t row, uint16_t end) {
     // Print string data
     API::print_string("  \"");
     for (uint8_t col = 0; col < COL_SIZE; ++col) {
-      fmt_ascii(API::print_char, row_data[col]);
+      format_ascii(API::print_char, row_data[col]);
     }
     API::print_string("\"\n");
 

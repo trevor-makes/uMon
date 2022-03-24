@@ -68,7 +68,7 @@ template <typename F>
 void format_hex32(F&& print, uint32_t n) { format_hex(print, n); }
 
 template <typename F>
-void fmt_ascii(F&& print, uint8_t c) {
+void format_ascii(F&& print, uint8_t c) {
   if (c < ' ' || c >= 0x7F) {
     c = '.'; // Display control and non-ASCII as dot
   }
