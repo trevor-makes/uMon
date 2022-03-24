@@ -66,24 +66,28 @@ void fmt_ascii(F&& print, uint8_t c) {
   print(c);
 }
 
-// Set CLI prompt to "[cmd] $[addr] "
-template <typename API>
-void set_prompt(const char* cmd, uint16_t addr) {
+// Set CLI prompt to "[cmd] "
+template <typename API, size_t N = 0>
+void set_prompt(const char* cmd) {
   API::prompt_string(cmd);
-  API::prompt_string(" $");
-  fmt_hex16(API::prompt_char, addr);
   API::prompt_char(' ');
 }
 
-// Set CLI prompt to "[cmd] $[addr] $[addr2]"
-template <typename API>
-void set_prompt(const char* cmd, uint16_t addr, uint16_t addr2) {
-  API::prompt_string(cmd);
-  API::prompt_string(" $");
-  fmt_hex16(API::prompt_char, addr);
-  API::prompt_string(" $");
-  fmt_hex16(API::prompt_char, addr2);
+// Set CLI prompt to "[cmd] $[arg] ..."
+template <typename API, bool First = true, typename T, typename... Var>
+void set_prompt(const char* cmd, const T arg, const Var... var)
+{
+  // Prepend cmd
+  if (First) {
+    set_prompt<API>(cmd);
+  }
+  API::prompt_char('$');
+  fmt_hex16(API::prompt_char, arg);
   API::prompt_char(' ');
+  // Append following args
+  if (sizeof...(Var) > 0) {
+    set_prompt<API, false, Var...>(cmd, var...);
+  }
 }
 
 template <typename API>
