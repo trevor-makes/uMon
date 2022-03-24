@@ -7,7 +7,6 @@ using namespace uMon::z80;
 constexpr const uint16_t DATA_SIZE = 8;
 uint8_t test_data[DATA_SIZE];
 uCLI::CursorOwner<16> test_io;
-uCLI::CursorOwner<16> asm_buf;
 
 struct TestAPI {
   static void print_char(char c) { test_io.try_insert(c); }
@@ -36,9 +35,9 @@ void test_asm(const AsmTest& test) {
   const uint16_t addr = 0;
 
   // Prepare CLI tokens for assembler
-  asm_buf.clear();
-  asm_buf.try_insert(test.str);
-  uCLI::Tokens args(asm_buf.contents());
+  test_io.clear();
+  test_io.try_insert(test.str);
+  uCLI::Tokens args(test_io.contents());
 
   // Parse instruction from CLI tokens and validate
   Instruction inst_in;
@@ -169,7 +168,10 @@ void test_asm_misc(void) {
   }
 }
 
-static const char* REG_STR[] = { "B", "C", "D", "E", "H", "L", "(HL)", "A" };
+const char* REG_STR[] = { "B", "C", "D", "E", "H", "L", "(HL)", "A" };
+const char* ALU_STR[] = { "ADD", "ADC", "SUB", "SBC", "AND", "XOR", "OR", "CP" };
+
+uCLI::CursorOwner<16> asm_buf;
 
 void test_asm_ld_r(void) {
   // Test LD r,r
@@ -239,8 +241,6 @@ void test_asm_ld_r(void) {
   }
 }
 
-static const char* ALU_STR[] = { "ADD", "ADC", "SUB", "SBC", "AND", "XOR", "OR", "CP" };
-
 void test_asm_alu_r() {
   // Test [alu] A,r
   for (uint8_t alu = 0; alu < 8; ++alu) {
@@ -268,7 +268,7 @@ void test_asm_alu_r() {
       asm_buf.try_insert(" A,");
       asm_buf.try_insert("(IY)");
       uint8_t code[3] = { 0xFD, uint8_t(0206 | alu << 3), 0x00 };
-      AsmTest test = {asm_buf.contents(), 3, (char*)code, {ALU_MNE[alu], {TOK_A}, {TOK_IX_IND}}};
+      AsmTest test = {asm_buf.contents(), 3, (char*)code, {ALU_MNE[alu], {TOK_A}, {TOK_IY_IND}}};
       test_asm(test);
     }
   }
@@ -277,7 +277,7 @@ void test_asm_alu_r() {
 int main(int argc, char* argv[]) {
   UNITY_BEGIN();
   RUN_TEST(test_asm_misc);
-  //RUN_TEST(test_asm_ld_r);
-  //RUN_TEST(test_asm_alu_r);
+  RUN_TEST(test_asm_ld_r);
+  RUN_TEST(test_asm_alu_r);
   UNITY_END();
 }
