@@ -1,6 +1,5 @@
 #include "uMon/z80.hpp"
 
-#include <Arduino.h>
 #include <unity.h>
 
 using namespace uMon::z80;
@@ -275,12 +274,10 @@ void test_asm_alu_r() {
   }
 }
 
-void setup() {
+int main(int argc, char* argv[]) {
   UNITY_BEGIN();
   RUN_TEST(test_asm_misc);
-  RUN_TEST(test_asm_ld_r);
-  RUN_TEST(test_asm_alu_r);
+  //RUN_TEST(test_asm_ld_r);
+  //RUN_TEST(test_asm_alu_r);
   UNITY_END();
 }
-
-void loop() {}
