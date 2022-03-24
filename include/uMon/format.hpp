@@ -96,7 +96,7 @@ template <uint8_t N>
 uint8_t pgm_bsearch(const char* const (&table)[N], const char* str) {
   char* res = (char*)bsearch(str, table, N, sizeof(table[0]),
     [](const void* key, const void* entry) {
-      return strcasecmp_P((char*)key, pgm_read_ptr((const char* const*)entry));
+      return strcasecmp_P((char*)key, (char*)pgm_read_ptr((const char* const*)entry));
     });
   return res == nullptr ? N : (res - (char*)table) / sizeof(table[0]);
 }
