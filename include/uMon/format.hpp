@@ -3,10 +3,10 @@
 
 #pragma once
 
-#ifdef AVR
-#include <avr/pgmspace.h>
-#else
+#ifdef ENV_NATIVE
 #include "FakePgm.hpp"
+#else
+#include <avr/pgmspace.h>
 #endif
 
 #include <stdint.h>
