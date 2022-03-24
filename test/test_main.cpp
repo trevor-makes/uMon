@@ -211,7 +211,7 @@ void test_asm_ld_r(void) {
       asm_buf.try_insert(' ');
       asm_buf.try_insert(dst_str);
       asm_buf.try_insert(",(IX)");
-      uint8_t code[3] = { 0xDD, uint8_t(0106 | dst << 3), 0x00 };
+      uint8_t code[3] = { PREFIX_IX, uint8_t(0106 | dst << 3), 0x00 };
       AsmTest test = {asm_buf.contents(), sizeof(code), (char*)code, {MNE_LD, {dst_tok}, {TOK_IX_IND}}};
       test_asm(test);
     }
@@ -220,7 +220,7 @@ void test_asm_ld_r(void) {
       asm_buf.try_insert(MNE_STR_LD);
       asm_buf.try_insert(" (IX+$01),");
       asm_buf.try_insert(dst_str); // NOTE using dst as src
-      uint8_t code[3] = { 0xDD, uint8_t(0160 | dst), 0x01 };
+      uint8_t code[3] = { PREFIX_IX, uint8_t(0160 | dst), 0x01 };
       AsmTest test = {asm_buf.contents(), sizeof(code), (char*)code, {MNE_LD, {TOK_IX_IND, 1}, {dst_tok}}};
       test_asm(test);
     }
@@ -230,7 +230,7 @@ void test_asm_ld_r(void) {
       asm_buf.try_insert(' ');
       asm_buf.try_insert(dst_str);
       asm_buf.try_insert(",(IY-$01)");
-      uint8_t code[3] = { 0xFD, uint8_t(0106 | dst << 3), 0xFF };
+      uint8_t code[3] = { PREFIX_IY, uint8_t(0106 | dst << 3), 0xFF };
       AsmTest test = {asm_buf.contents(), sizeof(code), (char*)code, {MNE_LD, {dst_tok}, {TOK_IY_IND, uint16_t(-1)}}};
       test_asm(test);
     }
@@ -239,7 +239,7 @@ void test_asm_ld_r(void) {
       asm_buf.try_insert(MNE_STR_LD);
       asm_buf.try_insert(" (IY+$7F),");
       asm_buf.try_insert(dst_str); // NOTE using dst as src
-      uint8_t code[3] = { 0xFD, uint8_t(0160 | dst), 0x7F };
+      uint8_t code[3] = { PREFIX_IY, uint8_t(0160 | dst), 0x7F };
       AsmTest test = {asm_buf.contents(), sizeof(code), (char*)code, {MNE_LD, {TOK_IY_IND, 0x7F}, {dst_tok}}};
       test_asm(test);
     }
@@ -266,7 +266,7 @@ void test_asm_alu_r() {
       asm_buf.clear();
       asm_buf.try_insert(alu_str);
       asm_buf.try_insert(" A,(IX-$80)");
-      uint8_t code[3] = { 0xDD, uint8_t(0206 | alu << 3), 0x80 };
+      uint8_t code[3] = { PREFIX_IX, uint8_t(0206 | alu << 3), 0x80 };
       AsmTest test = {asm_buf.contents(), sizeof(code), (char*)code, {alu_mne, {TOK_A}, {TOK_IX_IND, uint16_t(-0x80)}}};
       test_asm(test);
     }
@@ -274,7 +274,7 @@ void test_asm_alu_r() {
       asm_buf.clear();
       asm_buf.try_insert(alu_str);
       asm_buf.try_insert(" A,(IY)");
-      uint8_t code[3] = { 0xFD, uint8_t(0206 | alu << 3), 0x00 };
+      uint8_t code[3] = { PREFIX_IY, uint8_t(0206 | alu << 3), 0x00 };
       AsmTest test = {asm_buf.contents(), sizeof(code), (char*)code, {alu_mne, {TOK_A}, {TOK_IY_IND}}};
       test_asm(test);
     }
@@ -308,14 +308,11 @@ void test_asm_inc_r() {
     }
     // inc/dec ixh/ixl/iyh/iyl
     static uint8_t TOK[] = {TOK_IXL, TOK_IXH, TOK_IYL, TOK_IYH};
-    static const char* STR[] = {"IXL", "IXH", "IYL", "IYH"};
-    static uint8_t REG[] = {REG_L, REG_H, REG_L, REG_H};
-    static uint8_t PFX[] = {0xDD, 0xDD, 0xFD, 0xFD};
     for (uint8_t i = 0; i < 4; ++i) {
-      uint8_t reg = REG[i];
       uint8_t reg_tok = TOK[i];
-      const char* reg_str = STR[i];
-      uint8_t prefix = PFX[i];
+      const char* reg_str = TOK_STR[reg_tok];
+      uint8_t prefix = token_to_prefix(reg_tok);
+      uint8_t reg = token_to_reg(reg_tok, prefix);
       asm_buf.clear();
       asm_buf.try_insert(MNE_STR[mne]);
       asm_buf.try_insert(' ');
