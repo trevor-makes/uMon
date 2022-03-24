@@ -46,7 +46,7 @@ bool parse_operand(Operand& op, uCLI::Tokens tokens) {
     op.token = TOK_IMMEDIATE;
     op.value = value;
   } else {
-    op.token = index_of_pgm_string(TOK_STR, op_str);
+    op.token = pgm_bsearch(TOK_STR, op_str);
     uMON_FMT_ERROR(op.token == TOK_INVALID, "arg", op_str, return false);
   }
 
@@ -59,7 +59,7 @@ bool parse_operand(Operand& op, uCLI::Tokens tokens) {
 template <typename API>
 bool parse_instruction(Instruction& inst, uCLI::Tokens args) {
   const char* mnemonic = args.next();
-  inst.mnemonic = index_of_pgm_string(MNE_STR, mnemonic);
+  inst.mnemonic = pgm_bsearch(MNE_STR, mnemonic);
   uMON_FMT_ERROR(inst.mnemonic == MNE_INVALID, "op", mnemonic, return false);
 
   // Parse operands

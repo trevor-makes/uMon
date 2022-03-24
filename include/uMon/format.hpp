@@ -7,6 +7,7 @@
 #include <avr/pgmspace.h>
 #else
 #include <strings.h>
+#include <stdlib.h>
 char pgm_read_byte(const char* ptr) {
   return *ptr;
 }
@@ -101,13 +102,12 @@ void print_pgm_table(const char* const table[], uint8_t index) {
 
 // Find index of string in PROGMEM table
 template <uint8_t N>
-uint8_t index_of_pgm_string(const char* const (&table)[N], const char* str) {
-  for (uint8_t i = 0; i < N; ++i) {
-    if (strcasecmp_P(str, (char*)pgm_read_ptr(table + i)) == 0) {
-      return i;
-    }
-  }
-  return N;
+uint8_t pgm_bsearch(const char* const (&table)[N], const char* str) {
+  char* res = (char*)bsearch(str, table, N, sizeof(table[0]),
+    [](const void* key, const void* entry) {
+      return strcasecmp_P((char*)key, (char*)pgm_read_ptr((const char* const*)entry));
+    });
+  return res == nullptr ? N : (res - (char*)table) / sizeof(table[0]);
 }
 
 #define uMON_FMT_ERROR(IS_ERR, LABEL, STRING, RET) \
