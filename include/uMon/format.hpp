@@ -76,24 +76,32 @@ void fmt_ascii(F&& print, uint8_t c) {
 }
 
 // Set CLI prompt to "[cmd] "
-template <typename API, size_t N = 0>
+template <typename API, bool First = true>
 void set_prompt(const char* cmd) {
-  API::prompt_string(cmd);
-  API::prompt_char(' ');
+  // NOTE compiler requires having `First` to match `set_prompt<API, false, Var...>`
+  // when `Var...` is empty, even though `if (sizeof...(Var) > 0)` prevents this
+  // from happening in practice
+  if (First) {
+    API::prompt_string(cmd);
+    API::prompt_char(' ');
+  }
 }
 
 // Set CLI prompt to "[cmd] $[arg] ..."
 template <typename API, bool First = true, typename T, typename... Var>
 void set_prompt(const char* cmd, const T arg, const Var... var)
 {
-  // Prepend cmd
+  // Print command before first arg only
   if (First) {
     set_prompt<API>(cmd);
   }
+
+  // Print current arg as 8-, 16-, or 32-bit hex
   API::prompt_char('$');
   format_hex(API::prompt_char, arg);
   API::prompt_char(' ');
-  // Append following args
+
+  // Append following args recursively (with First set to false)
   if (sizeof...(Var) > 0) {
     set_prompt<API, false, Var...>(cmd, var...);
   }
