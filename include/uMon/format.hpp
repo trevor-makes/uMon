@@ -6,16 +6,7 @@
 #ifdef AVR
 #include <avr/pgmspace.h>
 #else
-#include <strings.h>
-#include <stdlib.h>
-char pgm_read_byte(const char* ptr) {
-  return *ptr;
-}
-const char* pgm_read_ptr(const char* const* ptr) {
-  return *ptr;
-}
-#define strcasecmp_P strcasecmp
-#define PROGMEM
+#include "FakePgm.hpp"
 #endif
 
 #include <stdint.h>
@@ -105,7 +96,7 @@ template <uint8_t N>
 uint8_t pgm_bsearch(const char* const (&table)[N], const char* str) {
   char* res = (char*)bsearch(str, table, N, sizeof(table[0]),
     [](const void* key, const void* entry) {
-      return strcasecmp_P((char*)key, (char*)pgm_read_ptr((const char* const*)entry));
+      return strcasecmp_P((char*)key, pgm_read_ptr((const char* const*)entry));
     });
   return res == nullptr ? N : (res - (char*)table) / sizeof(table[0]);
 }
