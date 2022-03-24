@@ -527,9 +527,9 @@ uint8_t dasm_instruction(Instruction& inst, uint16_t addr, uint8_t prefix = 0) {
   }
 }
 
-template <typename API>
+template <typename API, uint8_t MAX_ROWS = 24>
 uint16_t dasm_range(uint16_t addr, uint16_t end) {
-  for (;;) {
+  for (uint8_t i = 0; i < MAX_ROWS; ++i) {
     // Print instruction address
     fmt_hex16(API::print_char, addr);
     API::print_string(":  ");
@@ -543,12 +543,11 @@ uint16_t dasm_range(uint16_t addr, uint16_t end) {
     API::print_char('\n');
 
     // Do while end does not overlap with opcode
-    uint16_t next = addr + size;
-    if (uint16_t(end - addr) < size) {
-      return next;
-    }
-    addr = next;
+    uint16_t prev = addr;
+    addr += size;
+    if (uint16_t(end - prev) < size) { break; }
   }
+  return addr;
 }
 
 } // namespace z80

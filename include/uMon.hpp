@@ -11,10 +11,10 @@
 namespace uMon {
 
 // Dump memory as hex/ascii from row to end, inclusive
-template <typename API, uint8_t COL_SIZE = 16>
-void impl_hex(uint16_t row, uint16_t end) {
+template <typename API, uint8_t COL_SIZE = 16, uint8_t MAX_ROWS = 24>
+uint16_t impl_hex(uint16_t row, uint16_t end) {
   uint8_t row_data[COL_SIZE];
-  for (;;) {
+  for (uint8_t i = 0; i < MAX_ROWS; ++i) {
     API::read_bytes(row, row_data);
 
     // Print address
@@ -38,9 +38,11 @@ void impl_hex(uint16_t row, uint16_t end) {
     API::print_string("\"\n");
 
     // Do while end does not overlap with row
-    if (uint16_t(end - row) < COL_SIZE) { return; }
+    uint16_t prev = row;
     row += COL_SIZE;
+    if (uint16_t(end - prev) < COL_SIZE) { break; }
   }
+  return row;
 }
 
 // Write pattern from start to end, inclusive
@@ -88,12 +90,17 @@ void impl_memmove(uint16_t start, uint16_t end, uint16_t dest) {
   }
 }
 
-template <typename API, uint8_t COL_SIZE = 16>
+template <typename API, uint8_t COL_SIZE = 16, uint8_t MAX_ROWS = 24>
 void cmd_hex(uCLI::Args args) {
   // Default size to one row if not provided
   uMON_EXPECT_UINT(uint16_t, start, args, return);
   uMON_OPTION_UINT(uint16_t, size, COL_SIZE, args, return);
-  impl_hex<API, COL_SIZE>(start, start + size - 1);
+  uint16_t end_incl = start + size - 1;
+  uint16_t next = impl_hex<API, COL_SIZE, MAX_ROWS>(start, end_incl);
+  uint16_t part = next - start;
+  if (part < size) {
+    set_prompt<API>(args.command(), next, size - part);
+  }
 }
 
 template <typename API>

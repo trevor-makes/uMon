@@ -87,13 +87,19 @@ void cmd_asm(uCLI::Args args) {
   }
 }
 
-template <typename API>
+template <typename API, uint8_t MAX_ROWS = 24>
 void cmd_dasm(uCLI::Args args) {
   // Default size to one instruction if not provided
   uMON_EXPECT_UINT(uint16_t, start, args, return);
   uMON_OPTION_UINT(uint16_t, size, 1, args, return);
-  uint16_t next = dasm_range<API>(start, start + size - 1);
-  set_prompt<API>(args.command(), next);
+  uint16_t end_incl = start + size - 1;
+  uint16_t next = dasm_range<API, MAX_ROWS>(start, end_incl);
+  uint16_t part = next - start;
+  if (part < size) {
+    set_prompt<API>(args.command(), next, size - part);
+  } else {
+    set_prompt<API>(args.command(), next);
+  }
 }
 
 } // namespace z80

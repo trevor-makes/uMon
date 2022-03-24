@@ -75,6 +75,17 @@ void set_prompt(const char* cmd, uint16_t addr) {
   API::prompt_char(' ');
 }
 
+// Set CLI prompt to "[cmd] $[addr] $[addr2]"
+template <typename API>
+void set_prompt(const char* cmd, uint16_t addr, uint16_t addr2) {
+  API::prompt_string(cmd);
+  API::prompt_string(" $");
+  fmt_hex16(API::prompt_char, addr);
+  API::prompt_string(" $");
+  fmt_hex16(API::prompt_char, addr2);
+  API::prompt_char(' ');
+}
+
 template <typename API>
 void print_pgm_string(const char* str) {
   for (;;) {
