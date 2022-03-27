@@ -323,8 +323,26 @@ void test_asm_inc_r() {
   }
 }
 
+template <uint8_t N>
+void assert_sorted(const char* const (&table)[N]) {
+  for (uint8_t i = 1; i < N; ++i) {
+    const char* entry = table[i];
+    // Assert ascending sort; each entry greater than previous
+    int cmp = strcasecmp(entry, table[i - 1]);
+    TEST_ASSERT_TRUE_MESSAGE(cmp > 0, entry);
+    // Assert each entry can be found by binary search
+    TEST_ASSERT_EQUAL_MESSAGE(i, uMon::pgm_bsearch(table, entry), entry);
+  }
+}
+
+void test_str_sort() {
+  assert_sorted(MNE_STR);
+  assert_sorted(TOK_STR);
+}
+
 int main(int argc, char* argv[]) {
   UNITY_BEGIN();
+  RUN_TEST(test_str_sort);
   RUN_TEST(test_asm_misc);
   RUN_TEST(test_asm_ld_r);
   RUN_TEST(test_asm_alu_r);
