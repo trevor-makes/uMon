@@ -336,13 +336,15 @@ template <typename API>
 uint8_t write_djnz_jr(uint16_t addr, uint8_t code, Operand& op) {
   // DJNZ/JR imm16
   int16_t disp = op.value - (addr + 2);
-  if (op.token == TOK_IMMEDIATE && disp >= -128 && disp <= 127) {
-    return write_code_byte<API>(addr, code, disp);
-  // ?
-  } else {
+  if (op.token != TOK_IMMEDIATE) {
     print_operand_error<API>(op);
     return 0;
   }
+  if (disp < -128 || disp > 127) {
+    API::print_string("too far\n");
+    return 0;
+  }
+  return write_code_byte<API>(addr, code, disp);
 }
 
 // Write DJNZ instruction at address
