@@ -18,7 +18,7 @@ namespace uMon {
 // Prints the string and returns false if invalid characters found
 // Supports prefixes $ for hex, & for octal, and % for binary
 template <typename T>
-bool parse_unsigned(const char* str, T& result) {
+bool parse_unsigned(T& result, const char* str) {
   char* end;
   // Handle custom prefixes for non-decimal bases
   switch (str[0]) {
@@ -145,11 +145,20 @@ uint8_t pgm_bsearch(const char* const (&table)[N], const char* str) {
     RET; \
   }
 
+#define uMON_EXPECT_ADDR(TYPE, NAME, ARGS, RET) \
+  TYPE NAME; \
+  { \
+    const char* str = ARGS.next(); \
+    if (API::addr_from_label(NAME, str)) {} \
+    else if (parse_unsigned(NAME, str)) {} \
+    else { uMON_FMT_ERROR(true, #NAME, str, RET) } \
+  }
+
 #define uMON_EXPECT_UINT(TYPE, NAME, ARGS, RET) \
   TYPE NAME; \
   { \
     const char* str = ARGS.next(); \
-    const bool is_err = !parse_unsigned(str, NAME); \
+    const bool is_err = !parse_unsigned(NAME, str); \
     uMON_FMT_ERROR(is_err, #NAME, str, RET) \
   }
 
@@ -157,7 +166,7 @@ uint8_t pgm_bsearch(const char* const (&table)[N], const char* str) {
   TYPE NAME = DEFAULT; \
   if (ARGS.has_next()) { \
     const char* str = ARGS.next(); \
-    const bool is_err = !parse_unsigned(str, NAME); \
+    const bool is_err = !parse_unsigned(NAME, str); \
     uMON_FMT_ERROR(is_err, #NAME, str, RET); \
   }
 

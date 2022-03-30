@@ -93,7 +93,7 @@ void impl_memmove(uint16_t start, uint16_t end, uint16_t dest) {
 template <typename API, uint8_t COL_SIZE = 16, uint8_t MAX_ROWS = 24>
 void cmd_hex(uCLI::Args args) {
   // Default size to one row if not provided
-  uMON_EXPECT_UINT(uint16_t, start, args, return);
+  uMON_EXPECT_ADDR(uint16_t, start, args, return);
   uMON_OPTION_UINT(uint16_t, size, COL_SIZE, args, return);
   uint16_t end_incl = start + size - 1;
   uint16_t next = impl_hex<API, COL_SIZE, MAX_ROWS>(start, end_incl);
@@ -105,7 +105,7 @@ void cmd_hex(uCLI::Args args) {
 
 template <typename API>
 void cmd_set(uCLI::Args args) {
-  uMON_EXPECT_UINT(uint16_t, start, args, return);
+  uMON_EXPECT_ADDR(uint16_t, start, args, return);
   do {
     if (args.is_string()) {
       start = impl_strcpy<API>(start, args.next());
@@ -119,7 +119,7 @@ void cmd_set(uCLI::Args args) {
 
 template <typename API>
 void cmd_fill(uCLI::Args args) {
-  uMON_EXPECT_UINT(uint16_t, start, args, return);
+  uMON_EXPECT_ADDR(uint16_t, start, args, return);
   uMON_EXPECT_UINT(uint16_t, size, args, return);
   uMON_EXPECT_UINT(uint8_t, pattern, args, return);
   impl_memset<API>(start, start + size - 1, pattern);
@@ -127,10 +127,31 @@ void cmd_fill(uCLI::Args args) {
 
 template <typename API>
 void cmd_move(uCLI::Args args) {
-  uMON_EXPECT_UINT(uint16_t, start, args, return);
+  uMON_EXPECT_ADDR(uint16_t, start, args, return);
   uMON_EXPECT_UINT(uint16_t, size, args, return);
-  uMON_EXPECT_UINT(uint16_t, dest, args, return);
+  uMON_EXPECT_ADDR(uint16_t, dest, args, return);
   impl_memmove<API>(start, start + size - 1, dest);
+}
+
+template <typename API>
+void cmd_label(uCLI::Args args) {
+  const char* label = args.next();
+  uMON_FMT_ERROR(label == nullptr, "label", "", return);
+  if (args.has_next()) {
+    // Set label to integer argument
+    uMON_EXPECT_UINT(uint16_t, addr, args, return);
+    API::set_label(label, addr);
+  } else {
+    uint16_t addr;
+    if (API::addr_from_label(addr, label)) {
+      // Print address of label
+      API::print_char('$');
+      format_hex16(API::print_char, addr);
+      API::print_char('\n');
+    } else {
+      uMON_FMT_ERROR(true, "label", label, return);
+    }
+  }
 }
 
 } // namespace uMon

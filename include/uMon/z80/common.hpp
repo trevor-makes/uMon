@@ -379,8 +379,13 @@ void print_operand(Operand& op) {
       API::print_char('$');
       format_hex8(API::print_char, op.value);
     } else {
-      API::print_char('$');
-      format_hex16(API::print_char, op.value);
+      const char* label;
+      if (API::label_from_addr(label, op.value)) {
+        API::print_string(label);
+      } else {
+        API::print_char('$');
+        format_hex16(API::print_char, op.value);
+      }
     }
   } else {
     API::print_char('?');

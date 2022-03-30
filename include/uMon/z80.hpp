@@ -42,7 +42,10 @@ bool parse_operand(Operand& op, uCLI::Tokens tokens) {
     uMON_FMT_ERROR(strlen(op_str) > 1, "chr", op_str, return false);
     op.token = TOK_IMMEDIATE;
     op.value = op_str[0];
-  } else if (uMon::parse_unsigned(op_str, value)) {
+  } else if (API::addr_from_label(value, op_str)) {
+    op.token = TOK_IMMEDIATE;
+    op.value = value;
+  } else if (parse_unsigned(value, op_str)) {
     op.token = TOK_IMMEDIATE;
     op.value = value;
   } else {
@@ -75,7 +78,7 @@ bool parse_instruction(Instruction& inst, uCLI::Tokens args) {
 
 template <typename API>
 void cmd_asm(uCLI::Args args) {
-  uMON_EXPECT_UINT(uint16_t, start, args, return);
+  uMON_EXPECT_ADDR(uint16_t, start, args, return);
 
   // Parse and assemble instruction
   Instruction inst;
@@ -90,7 +93,7 @@ void cmd_asm(uCLI::Args args) {
 template <typename API, uint8_t MAX_ROWS = 24>
 void cmd_dasm(uCLI::Args args) {
   // Default size to one instruction if not provided
-  uMON_EXPECT_UINT(uint16_t, start, args, return);
+  uMON_EXPECT_ADDR(uint16_t, start, args, return);
   uMON_OPTION_UINT(uint16_t, size, 1, args, return);
   uint16_t end_incl = start + size - 1;
   uint16_t next = dasm_range<API, MAX_ROWS>(start, end_incl);
