@@ -18,8 +18,8 @@ uint16_t impl_hex(uint16_t row, uint16_t end) {
     API::read_bytes(row, row_data);
 
     // Print address
+    API::print_char(' ');
     format_hex16(API::print_char, row);
-    API::print_char(':');
 
     // Print hex data
     for (uint8_t col = 0; col < COL_SIZE; ++col) {

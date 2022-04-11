@@ -530,15 +530,17 @@ uint8_t dasm_instruction(Instruction& inst, uint16_t addr, uint8_t prefix = 0) {
 template <typename API, uint8_t MAX_ROWS = 24>
 uint16_t dasm_range(uint16_t addr, uint16_t end) {
   for (uint8_t i = 0; i < MAX_ROWS; ++i) {
+    // If address has label, print it
     const char* label;
     if (API::label_from_addr(label, addr)) {
-      // Print label pointing to address
       API::print_string(label);
-    } else {
-      // Print instruction address
-      format_hex16(API::print_char, addr);
+      API::print_string(":\n");
     }
-    API::print_string(":  ");
+
+    // Print instruction address
+    API::print_char(' ');
+    format_hex16(API::print_char, addr);
+    API::print_string("  ");
 
     // Translate machine code to mnemonic and operands for printing
     Instruction inst;
