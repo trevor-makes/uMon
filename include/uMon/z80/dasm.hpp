@@ -532,7 +532,7 @@ uint16_t dasm_range(uint16_t addr, uint16_t end) {
   for (uint8_t i = 0; i < MAX_ROWS; ++i) {
     // If address has label, print it
     const char* label;
-    if (API::label_from_addr(label, addr)) {
+    if (API::get_labels().get_name(addr, label)) {
       API::print_string(label);
       API::print_string(":\n");
     }

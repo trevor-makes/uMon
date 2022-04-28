@@ -42,7 +42,7 @@ bool parse_operand(Operand& op, uCLI::Tokens tokens) {
     uMON_FMT_ERROR(strlen(op_str) > 1, "chr", op_str, return false);
     op.token = TOK_IMMEDIATE;
     op.value = op_str[0];
-  } else if (API::addr_from_label(value, op_str)) {
+  } else if (API::get_labels().get_addr(op_str, value)) {
     op.token = TOK_IMMEDIATE;
     op.value = value;
   } else if (parse_unsigned(value, op_str)) {

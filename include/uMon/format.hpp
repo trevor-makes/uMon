@@ -149,7 +149,7 @@ uint8_t pgm_bsearch(const char* const (&table)[N], const char* str) {
   TYPE NAME; \
   { \
     const char* str = ARGS.next(); \
-    if (API::addr_from_label(NAME, str)) {} \
+    if ( API::get_labels().get_addr(str, NAME)) {} \
     else if (parse_unsigned(NAME, str)) {} \
     else { uMON_FMT_ERROR(true, #NAME, str, RET) } \
   }

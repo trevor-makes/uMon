@@ -380,7 +380,7 @@ void print_operand(Operand& op) {
       format_hex8(API::print_char, op.value);
     } else {
       const char* label;
-      if (API::label_from_addr(label, op.value)) {
+      if (API::get_labels().get_name(op.value, label)) {
         API::print_string(label);
       } else {
         API::print_char('$');

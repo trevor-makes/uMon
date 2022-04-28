@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "uMon/labels.hpp"
 #include "uMon/format.hpp"
 #include "uCLI.hpp"
 
@@ -135,21 +136,30 @@ void cmd_move(uCLI::Args args) {
 
 template <typename API>
 void cmd_label(uCLI::Args args) {
-  const char* label = args.next();
-  uMON_FMT_ERROR(label == nullptr, "label", "", return);
+  Labels& labels = API::get_labels();
   if (args.has_next()) {
-    // Set label to integer argument
-    uMON_EXPECT_UINT(uint16_t, addr, args, return);
-    API::set_label(label, addr);
+    const char* name = args.next();
+    if (args.has_next()) {
+      // Set label to integer argument
+      uMON_EXPECT_UINT(uint16_t, addr, args, return);
+      if (labels.set_label(name, addr) == false) {
+        API::print_string("full\n");
+      }
+    } else {
+      // Remove label
+      bool fail = !labels.remove_label(name);
+      uMON_FMT_ERROR(fail, "name", name, return);
+    }
   } else {
+    // Print list of all labels
     uint16_t addr;
-    if (API::addr_from_label(addr, label)) {
-      // Print address of label
-      API::print_char('$');
+    const char* name;
+    for (uint8_t i = 0; i < labels.entries(); ++i) {
+      labels.get_index(i, name, addr);
+      API::print_string(name);
+      API::print_string(": $");
       format_hex16(API::print_char, addr);
       API::print_char('\n');
-    } else {
-      uMON_FMT_ERROR(true, "label", label, return);
     }
   }
 }
