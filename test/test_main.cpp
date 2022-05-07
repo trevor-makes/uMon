@@ -1,5 +1,5 @@
 #include "uMon/z80.hpp"
-#include "uMon/labels.hpp"
+#include "uMon/api.hpp"
 
 #include <unity.h>
 
@@ -9,29 +9,16 @@ constexpr const uint16_t DATA_SIZE = 8;
 uint8_t test_data[DATA_SIZE];
 uCLI::CursorOwner<16> test_io;
 
-char lbl_buf[80];
-uMon::Labels labels(lbl_buf);
-
-struct TestAPI {
+struct TestAPI : public uMon::Base<TestAPI> {
   static void print_char(char c) { test_io.try_insert(c); }
   static void print_string(const char* str) { test_io.try_insert(str); }
-  static void print_newline() { test_io.try_insert('\n'); }
+  static void newline() { test_io.try_insert('\n'); }
 
   static uint8_t read_byte(uint16_t addr) { return test_data[addr % DATA_SIZE]; };
-  template <uint8_t N>
-  static void read_bytes(uint16_t addr, uint8_t (&buf)[N]) {
-    for (uint8_t i = 0; i < N; ++i) {
-      buf[i] = read_byte(addr + i);
-    }
-  }
   static void write_byte(uint16_t addr, uint8_t data) { test_data[addr % DATA_SIZE] = data; }
 
   static void prompt_char(char c) { }
   static void prompt_string(const char* str) { }
-
-  static uMon::Labels& get_labels() {
-    return labels;
-  }
 };
 
 struct AsmTest {
