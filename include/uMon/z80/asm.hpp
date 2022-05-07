@@ -15,7 +15,8 @@ namespace z80 {
 template <typename API>
 void print_operand_error(Operand& op) {
   print_operand<API>(op);
-  API::print_string("?\n");
+  API::print_char('?');
+  API::newline();
 }
 
 // Write [code] at address and return bytes written
@@ -341,7 +342,8 @@ uint8_t write_djnz_jr(uint16_t addr, uint8_t code, Operand& op) {
     return 0;
   }
   if (disp < -128 || disp > 127) {
-    API::print_string("too far\n");
+    API::print_string("too far");
+    API::newline();
     return 0;
   }
   return write_code_byte<API>(addr, code, disp);

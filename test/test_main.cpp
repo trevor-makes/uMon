@@ -15,6 +15,8 @@ uMon::Labels labels(lbl_buf);
 struct TestAPI {
   static void print_char(char c) { test_io.try_insert(c); }
   static void print_string(const char* str) { test_io.try_insert(str); }
+  static void print_newline() { test_io.try_insert('\n'); }
+
   static uint8_t read_byte(uint16_t addr) { return test_data[addr % DATA_SIZE]; };
   template <uint8_t N>
   static void read_bytes(uint16_t addr, uint8_t (&buf)[N]) {
@@ -23,6 +25,7 @@ struct TestAPI {
     }
   }
   static void write_byte(uint16_t addr, uint8_t data) { test_data[addr % DATA_SIZE] = data; }
+
   static void prompt_char(char c) { }
   static void prompt_string(const char* str) { }
 

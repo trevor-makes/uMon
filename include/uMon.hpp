@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "uMon/labels.hpp"
+#include "uMon/api.hpp"
 #include "uMon/format.hpp"
 #include "uCLI.hpp"
 
@@ -36,7 +36,8 @@ uint16_t impl_hex(uint16_t row, uint16_t end) {
     for (uint8_t col = 0; col < COL_SIZE; ++col) {
       format_ascii(API::print_char, row_data[col]);
     }
-    API::print_string("\"\n");
+    API::print_char('\"');
+    API::newline();
 
     // Do while end does not overlap with row
     uint16_t prev = row;
@@ -136,14 +137,15 @@ void cmd_move(uCLI::Args args) {
 
 template <typename API>
 void cmd_label(uCLI::Args args) {
-  Labels& labels = API::get_labels();
+  auto& labels = API::get_labels();
   if (args.has_next()) {
     const char* name = args.next();
     if (args.has_next()) {
       // Set label to integer argument
       uMON_EXPECT_UINT(uint16_t, addr, args, return);
       if (labels.set_label(name, addr) == false) {
-        API::print_string("full\n");
+        API::print_string("full");
+        API::newline();
       }
     } else {
       // Remove label
@@ -159,7 +161,7 @@ void cmd_label(uCLI::Args args) {
       API::print_string(name);
       API::print_string(": $");
       format_hex16(API::print_char, addr);
-      API::print_char('\n');
+      API::newline();
     }
   }
 }

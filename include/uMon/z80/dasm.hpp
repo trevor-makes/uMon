@@ -534,7 +534,8 @@ uint16_t dasm_range(uint16_t addr, uint16_t end) {
     const char* label;
     if (API::get_labels().get_name(addr, label)) {
       API::print_string(label);
-      API::print_string(":\n");
+      API::print_char(':');
+      API::newline();
     }
 
     // Print instruction address
@@ -548,7 +549,7 @@ uint16_t dasm_range(uint16_t addr, uint16_t end) {
     if (inst.mnemonic != MNE_INVALID) {
       print_instruction<API>(inst);
     }
-    API::print_char('\n');
+    API::newline();
 
     // Do while end does not overlap with opcode
     uint16_t prev = addr;

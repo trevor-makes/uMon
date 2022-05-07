@@ -141,7 +141,8 @@ uint8_t pgm_bsearch(const char* const (&table)[N], const char* str) {
       API::print_string(": "); \
       API::print_string(str); \
     } \
-    API::print_string("?\n"); \
+    API::print_char('?'); \
+    API::newline(); \
     RET; \
   }
 
