@@ -30,14 +30,10 @@ struct Base {
   }
 
 private:
-  static char buffer[LBL_SIZE];
-  static uMon::Labels labels;
+  static uMon::LabelsOwner<LBL_SIZE> labels;
 };
 
 template <typename T, uint8_t N>
-char Base<T, N>::buffer[N];
-
-template <typename T, uint8_t N>
-uMon::Labels Base<T, N>::labels(Base<T, N>::buffer);
+uMon::LabelsOwner<N> Base<T, N>::labels;
 
 } // namespace uMon

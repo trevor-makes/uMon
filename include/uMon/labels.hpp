@@ -40,4 +40,11 @@ public:
   bool set_label(const char* name, uint16_t addr);
 };
 
+template <uint8_t SIZE>
+class LabelsOwner : public Labels {
+  char buffer_[SIZE];
+public:
+  LabelsOwner(): Labels(buffer_) {}
+};
+
 } // namespace uMon
