@@ -148,7 +148,7 @@ uint8_t pgm_bsearch(const char* const (&table)[N], const char* str) {
   return res == nullptr ? N : (res - (char*)table) / sizeof(table[0]);
 }
 
-#define uMON_FMT_ERROR(API, IS_ERR, LABEL, STRING, RET) \
+#define uMON_FMT_ERROR(API, IS_ERR, LABEL, STRING, FAIL) \
   if (IS_ERR) { \
     const char* str = STRING; \
     API::print_string(LABEL); \
@@ -158,40 +158,40 @@ uint8_t pgm_bsearch(const char* const (&table)[N], const char* str) {
     } \
     API::print_char('?'); \
     API::newline(); \
-    RET; \
+    FAIL; \
   }
 
-#define uMON_EXPECT_ADDR(API, TYPE, NAME, ARGS, RET) \
+#define uMON_EXPECT_ADDR(API, TYPE, NAME, ARGS, FAIL) \
   TYPE NAME; \
   { \
     const char* str = ARGS.next(); \
     if ( API::get_labels().get_addr(str, NAME)) {} \
     else if (parse_unsigned(NAME, str)) {} \
-    else { uMON_FMT_ERROR(API, true, #NAME, str, RET) } \
+    else { uMON_FMT_ERROR(API, true, #NAME, str, FAIL) } \
   }
 
-#define uMON_EXPECT_UINT(API, TYPE, NAME, ARGS, RET) \
+#define uMON_EXPECT_UINT(API, TYPE, NAME, ARGS, FAIL) \
   TYPE NAME; \
   { \
     const char* str = ARGS.next(); \
     const bool is_err = !parse_unsigned(NAME, str); \
-    uMON_FMT_ERROR(API, is_err, #NAME, str, RET) \
+    uMON_FMT_ERROR(API, is_err, #NAME, str, FAIL) \
   }
 
-#define uMON_OPTION_UINT(API, TYPE, NAME, DEFAULT, ARGS, RET) \
+#define uMON_OPTION_UINT(API, TYPE, NAME, DEFAULT, ARGS, FAIL) \
   TYPE NAME = DEFAULT; \
   if (ARGS.has_next()) { \
     const char* str = ARGS.next(); \
     const bool is_err = !parse_unsigned(NAME, str); \
-    uMON_FMT_ERROR(API, is_err, #NAME, str, RET); \
+    uMON_FMT_ERROR(API, is_err, #NAME, str, FAIL); \
   }
 
-#define uMON_INPUT_HEX8(API, NAME, RET) \
+#define uMON_INPUT_HEX8(API, NAME, FAIL) \
   uint8_t NAME; \
-  if (!input_hex<API, 2>(NAME)) RET;
+  if (!input_hex<API, 2>(NAME)) FAIL;
 
-#define uMON_INPUT_HEX16(API, NAME, RET) \
+#define uMON_INPUT_HEX16(API, NAME, FAIL) \
   uint16_t NAME; \
-  if (!input_hex<API, 4>(NAME)) RET;
+  if (!input_hex<API, 4>(NAME)) FAIL;
 
 } // namespace uMon
