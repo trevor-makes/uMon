@@ -148,7 +148,7 @@ uint8_t pgm_bsearch(const char* const (&table)[N], const char* str) {
   return res == nullptr ? N : (res - (char*)table) / sizeof(table[0]);
 }
 
-#define uMON_FMT_ERROR(IS_ERR, LABEL, STRING, RET) \
+#define uMON_FMT_ERROR(API, IS_ERR, LABEL, STRING, RET) \
   if (IS_ERR) { \
     const char* str = STRING; \
     API::print_string(LABEL); \
@@ -161,36 +161,36 @@ uint8_t pgm_bsearch(const char* const (&table)[N], const char* str) {
     RET; \
   }
 
-#define uMON_EXPECT_ADDR(TYPE, NAME, ARGS, RET) \
+#define uMON_EXPECT_ADDR(API, TYPE, NAME, ARGS, RET) \
   TYPE NAME; \
   { \
     const char* str = ARGS.next(); \
     if ( API::get_labels().get_addr(str, NAME)) {} \
     else if (parse_unsigned(NAME, str)) {} \
-    else { uMON_FMT_ERROR(true, #NAME, str, RET) } \
+    else { uMON_FMT_ERROR(API, true, #NAME, str, RET) } \
   }
 
-#define uMON_EXPECT_UINT(TYPE, NAME, ARGS, RET) \
+#define uMON_EXPECT_UINT(API, TYPE, NAME, ARGS, RET) \
   TYPE NAME; \
   { \
     const char* str = ARGS.next(); \
     const bool is_err = !parse_unsigned(NAME, str); \
-    uMON_FMT_ERROR(is_err, #NAME, str, RET) \
+    uMON_FMT_ERROR(API, is_err, #NAME, str, RET) \
   }
 
-#define uMON_OPTION_UINT(TYPE, NAME, DEFAULT, ARGS, RET) \
+#define uMON_OPTION_UINT(API, TYPE, NAME, DEFAULT, ARGS, RET) \
   TYPE NAME = DEFAULT; \
   if (ARGS.has_next()) { \
     const char* str = ARGS.next(); \
     const bool is_err = !parse_unsigned(NAME, str); \
-    uMON_FMT_ERROR(is_err, #NAME, str, RET); \
+    uMON_FMT_ERROR(API, is_err, #NAME, str, RET); \
   }
 
-#define uMON_INPUT_HEX8(NAME, RET) \
+#define uMON_INPUT_HEX8(API, NAME, RET) \
   uint8_t NAME; \
   if (!input_hex<API, 2>(NAME)) RET;
 
-#define uMON_INPUT_HEX16(NAME, RET) \
+#define uMON_INPUT_HEX16(API, NAME, RET) \
   uint16_t NAME; \
   if (!input_hex<API, 4>(NAME)) RET;
 
