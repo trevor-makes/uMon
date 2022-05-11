@@ -31,6 +31,29 @@ bool parse_unsigned(T& result, const char* str) {
   return end != str && *end == '\0';
 }
 
+template <typename API, uint8_t N, typename T>
+bool input_hex(T& result) {
+  // Read input into buffer
+  char buf[N + 1];
+  for (uint8_t i = 0; i < N; ++i) {
+    buf[i] = API::input_char();
+  }
+  buf[N] = '\0';
+  // Parse buffer as hex
+  char* end;
+  result = strtoul(buf, &end, 16);
+  // Return true if all characters were parsed
+  return end == &buf[N];
+}
+
+#define uMON_INPUT_HEX8(NAME, RET) \
+  uint8_t NAME; \
+  if (!input_hex<API, 2>(NAME)) RET;
+
+#define uMON_INPUT_HEX16(NAME, RET) \
+  uint16_t NAME; \
+  if (!input_hex<API, 4>(NAME)) RET;
+
 // Print single hex digit (or garbage if n > 15)
 template <typename F>
 void format_hex4(F&& print, uint8_t n) {

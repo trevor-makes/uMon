@@ -18,6 +18,15 @@ struct Base {
   static void print_string(const char* str) { T::get_stream().print(str); }
   static void newline() { T::get_stream().println(); }
 
+  static char input_char() {
+    char c;
+    do {
+      c = T::get_stream().read();
+    } while (c == -1);
+    T::get_stream().print(c);
+    return c;
+  }
+
   // static uCLI::CLI<>& get_cli()
   static void prompt_char(char c) { T::get_cli().prompt(c); }
   static void prompt_string(const char* str) { T::get_cli().prompt(str); }

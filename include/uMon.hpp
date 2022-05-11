@@ -8,6 +8,7 @@
 #include "uCLI.hpp"
 
 #include <stdint.h>
+#include <ctype.h>
 
 namespace uMon {
 
@@ -115,6 +116,44 @@ void impl_save(uint16_t start, uint16_t size) {
   }
   // Print end-of-file record
   API::print_string(":00000001FF");
+  API::newline();
+}
+
+// Read one line of IHX data plus checksum
+template <typename API>
+bool read_ihx_data(uint8_t rec_size, uint16_t address, uint8_t checksum) {
+  // Read record data
+  for (uint8_t i = 0; i < rec_size; ++i) {
+    uMON_INPUT_HEX8(data, return false);
+    API::write_byte(address + i, data);
+    checksum += data;
+  }
+  // Validate checksum
+  uMON_INPUT_HEX8(data, return false);
+  return uint8_t(checksum + data) == 0;
+}
+
+// Read serial data from IHX format into memory
+template <typename API>
+void cmd_load(uCLI::Args) {
+  for (;;) {
+    // Discard whitespace while looking for start of record (:)
+    char c;
+    do { c = API::input_char(); } while (isspace(c));
+    if (c != ':') break;
+    // Parse record header and data
+    uMON_INPUT_HEX8(rec_size, break);
+    uMON_INPUT_HEX16(address, break);
+    uMON_INPUT_HEX8(rec_type, break);
+    uint8_t checksum = rec_size + (address >> 8) + (address & 0xFF) + rec_type;
+    if (!read_ihx_data<API>(rec_size, address, checksum)) break;
+    // Exit if record type is not data (00)
+    if (rec_type > 0) {
+      API::newline();
+      return;
+    }
+  }
+  API::print_char('?');
   API::newline();
 }
 
