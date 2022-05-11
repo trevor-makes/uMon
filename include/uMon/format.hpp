@@ -46,14 +46,6 @@ bool input_hex(T& result) {
   return end == &buf[N];
 }
 
-#define uMON_INPUT_HEX8(NAME, RET) \
-  uint8_t NAME; \
-  if (!input_hex<API, 2>(NAME)) RET;
-
-#define uMON_INPUT_HEX16(NAME, RET) \
-  uint16_t NAME; \
-  if (!input_hex<API, 4>(NAME)) RET;
-
 // Print single hex digit (or garbage if n > 15)
 template <typename F>
 void format_hex4(F&& print, uint8_t n) {
@@ -193,5 +185,13 @@ uint8_t pgm_bsearch(const char* const (&table)[N], const char* str) {
     const bool is_err = !parse_unsigned(NAME, str); \
     uMON_FMT_ERROR(is_err, #NAME, str, RET); \
   }
+
+#define uMON_INPUT_HEX8(NAME, RET) \
+  uint8_t NAME; \
+  if (!input_hex<API, 2>(NAME)) RET;
+
+#define uMON_INPUT_HEX16(NAME, RET) \
+  uint16_t NAME; \
+  if (!input_hex<API, 4>(NAME)) RET;
 
 } // namespace uMon
