@@ -92,6 +92,32 @@ void impl_memmove(uint16_t start, uint16_t end, uint16_t dest) {
   }
 }
 
+// Print memory range in IHX format
+template <typename API, uint8_t REC_SIZE = 32>
+void impl_save(uint16_t start, uint16_t size) {
+  while (size > 0) {
+    uint8_t rec_size = size > REC_SIZE ? REC_SIZE : size;
+    size -= rec_size;
+    // Print record header
+    API::print_char(':');
+    format_hex8(API::print_char, rec_size);
+    format_hex16(API::print_char, start);
+    format_hex8(API::print_char, 0);
+    // Print data and checksum
+    uint8_t checksum = rec_size + (start >> 8) + (start & 0xFF);
+    while (rec_size-- > 0) {
+      uint8_t data = API::read_byte(start++);
+      format_hex8(API::print_char, data);
+      checksum += data;
+    }
+    format_hex8(API::print_char, -checksum);
+    API::newline();
+  }
+  // Print end-of-file record
+  API::print_string(":00000001FF");
+  API::newline();
+}
+
 template <typename API, uint8_t COL_SIZE = 16, uint8_t MAX_ROWS = 24>
 void cmd_hex(uCLI::Args args) {
   // Default size to one row if not provided
@@ -133,6 +159,13 @@ void cmd_move(uCLI::Args args) {
   uMON_EXPECT_UINT(uint16_t, size, args, return);
   uMON_EXPECT_ADDR(uint16_t, dest, args, return);
   impl_memmove<API>(start, start + size - 1, dest);
+}
+
+template <typename API, uint8_t REC_SIZE = 32>
+void cmd_save(uCLI::Args args) {
+  uMON_EXPECT_ADDR(uint16_t, start, args, return);
+  uMON_EXPECT_UINT(uint16_t, size, args, return);
+  impl_save<API, REC_SIZE>(start, size);
 }
 
 template <typename API>
