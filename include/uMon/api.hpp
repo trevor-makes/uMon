@@ -19,8 +19,8 @@ struct Base {
   static void newline() { T::get_stream().println(); }
 
   // static uCLI::CLI<>& get_cli()
-  static void prompt_char(char c) { T::get_cli().insert(c); }
-  static void prompt_string(const char* str) { T::get_cli().insert(str); }
+  static void prompt_char(char c) { T::get_cli().prompt(c); }
+  static void prompt_string(const char* str) { T::get_cli().prompt(str); }
 
   template <uint8_t N>
   static void read_bytes(uint16_t addr, uint8_t (&buf)[N]) {
