@@ -1,5 +1,7 @@
 # uMon
 
+**Deprecated! Merged into [core](https://github.com/trevor-makes/core)**
+
 uMon is a collection of primitives useful in developing a machine language monitor for hobby computers based around an Arduino microcontroller.
 
 This package is intended to be used with [PlatformIO](https://platformio.org/), but the source files can be manually copied into a project when using the Arduino IDE.
